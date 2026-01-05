@@ -3,6 +3,7 @@ import {
   type Attachment,
   type ChatInputCommandInteraction,
   type Message,
+  MessageFlags,
   PermissionFlagsBits,
   type TextBasedChannel
 } from 'discord.js'
@@ -57,7 +58,7 @@ module.exports = {
     ),
 
   async execute (interaction: ChatInputCommandInteraction) {
-    await interaction.deferReply({ ephemeral: true })
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral })
 
     const channel = interaction.channel
     if (!channel || !channel.isTextBased()) {
@@ -130,7 +131,7 @@ module.exports = {
 
       await interaction.editReply(chunks[0] ?? 'No output.')
       for (const chunk of chunks.slice(1)) {
-        await interaction.followUp({ content: chunk, ephemeral: true })
+        await interaction.followUp({ content: chunk, flags: MessageFlags.Ephemeral })
       }
       return
     }
@@ -323,7 +324,7 @@ async function uploadToBlackbook (args: {
   caption: string
   filePath: string
 }): Promise<number> {
-  const url = new URL('/api/discord_imports/images', args.baseUrl).toString()
+  const primaryUrl = new URL('/api/discord_imports/images', args.baseUrl).toString()
 
   const blob = await openAsBlob(args.filePath)
   const filename = args.filePath.split('/').pop() ?? 'upload.bin'
@@ -333,21 +334,86 @@ async function uploadToBlackbook (args: {
   form.append('caption', args.caption)
   form.append('image_file', blob, filename)
 
+  try {
+    return await doUpload(primaryUrl, args.apiToken, form, args.baseUrl)
+  } catch (error: any) {
+    // Common production failure: using https://blackbook:3000 even though the internal service is plain HTTP.
+    // That yields SSL errors like "packet length too long".
+    const canRetryHttp =
+      looksLikeSslProtocolError(error) &&
+      isLikelyInternalServiceUrl(args.baseUrl)
+
+    if (!canRetryHttp) throw error
+
+    const httpBase = forceHttp(args.baseUrl)
+    const retryUrl = new URL('/api/discord_imports/images', httpBase).toString()
+
+    // Re-open the blob for retry because the previous request body may have been consumed.
+    const retryBlob = await openAsBlob(args.filePath)
+    const retryForm = new FormData()
+    retryForm.append('universe_code', args.universeCode)
+    retryForm.append('caption', args.caption)
+    retryForm.append('image_file', retryBlob, filename)
+
+    return await doUpload(retryUrl, args.apiToken, retryForm, httpBase)
+  }
+}
+
+async function doUpload (
+  url: string,
+  apiToken: string,
+  form: FormData,
+  baseUrl: string
+): Promise<number> {
   const resp = await fetch(url, {
     method: 'POST',
+    // Prevent Rails force_ssl redirects when calling the internal HTTP service.
+    // (Blackbook is behind nginx in prod; internally it's still HTTP on :3000.)
     headers: {
-      Authorization: `Bearer ${args.apiToken}`
+      Authorization: `Bearer ${apiToken}`,
+      'X-Forwarded-Proto': 'https'
     },
+    // Don't auto-follow redirects; a 301 here is a misconfiguration signal.
+    redirect: 'manual',
     body: form
   })
 
   const bodyText = await resp.text()
   if (!resp.ok) {
-    throw new Error(`Blackbook upload failed: ${resp.status} ${bodyText}`)
+    const location = resp.headers.get('location')
+    const locPart = location ? ` location=${location}` : ''
+    throw new Error(`Blackbook upload failed: base=${baseUrl} url=${url} status=${resp.status}${locPart} body=${bodyText}`)
   }
 
   const parsed = JSON.parse(bodyText) as any
   return parsed.image_id as number
+}
+
+function looksLikeSslProtocolError (error: any): boolean {
+  const msg = String(error?.message ?? '')
+  const code = String(error?.cause?.code ?? error?.code ?? '')
+  return (
+    msg.includes('ERR_SSL_PACKET_LENGTH_TOO_LONG') ||
+    msg.includes('wrong version number') ||
+    msg.includes('SSL') ||
+    code === 'ERR_SSL_PACKET_LENGTH_TOO_LONG'
+  )
+}
+
+function isLikelyInternalServiceUrl (baseUrl: string): boolean {
+  try {
+    const u = new URL(baseUrl)
+    // docker-compose service name + typical Rails port
+    return u.hostname === 'blackbook' || (u.hostname === 'localhost' && u.port === '3000')
+  } catch {
+    return false
+  }
+}
+
+function forceHttp (baseUrl: string): string {
+  const u = new URL(baseUrl)
+  u.protocol = 'http:'
+  return u.toString()
 }
 
 async function downloadToSpool (
