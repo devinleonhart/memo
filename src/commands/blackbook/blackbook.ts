@@ -1,10 +1,16 @@
 import { SlashCommandBuilder } from '@discordjs/builders'
 import {
+  type Attachment,
   type ChatInputCommandInteraction,
   type Message,
   PermissionFlagsBits,
   type TextBasedChannel
 } from 'discord.js'
+import { createHash } from 'crypto'
+import { createWriteStream, openAsBlob, promises as fs } from 'fs'
+import { resolve } from 'path'
+import { pipeline } from 'stream/promises'
+import { Readable } from 'stream'
 
 const commandName = 'blackbook'
 const emojiName = 'blackbookit'
@@ -13,18 +19,40 @@ const emojiName = 'blackbookit'
 const MAX_MESSAGES_TO_SCAN = 100_000
 const TWO_YEARS_MS = 1000 * 60 * 60 * 24 * 365 * 2
 
+// Safety cap for any single download.
+const MAX_IMAGE_BYTES = 100 * 1024 * 1024 // 100MB
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName(commandName)
     .setDescription('Scan channel history for :blackbookit: reactions.')
-    .addStringOption(opt =>
-      opt
-        .setName('mode')
-        .setDescription('What to do with :blackbookit: reactions in this channel.')
-        .setRequired(true)
-        .addChoices(
-          { name: 'count', value: 'count' },
-          { name: 'print', value: 'print' }
+    .addSubcommand(sub =>
+      sub
+        .setName('count')
+        .setDescription('Count :blackbookit: reactions in this channel.')
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('print')
+        .setDescription('Print URLs found on messages with :blackbookit: reactions in this channel.')
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('export')
+        .setDescription('Export images marked with :blackbookit: to Blackbook.')
+        .addStringOption(opt =>
+          opt
+            .setName('universe')
+            .setDescription('Which Blackbook universe to upload into.')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Universe One (U1)', value: 'U1' },
+              { name: 'Universe Two (U2)', value: 'U2' },
+              { name: 'Universe Three (U3)', value: 'U3' },
+              { name: 'Universe Four (U4)', value: 'U4' },
+              { name: 'Universe Five (U5)', value: 'U5' },
+              { name: 'Universe Six (U6)', value: 'U6' }
+            )
         )
     ),
 
@@ -51,61 +79,356 @@ module.exports = {
       if (missing.length > 0) {
         await interaction.editReply(
           `I can’t read this channel’s history. Missing permission(s): ${missing.join(', ')}.\n` +
-          `Fix: give the bot role those permissions in this channel, or re-invite the bot with them.`
+          'Fix: give the bot role those permissions in this channel, or re-invite the bot with them.'
         )
         return
       }
     }
 
-    const mode = interaction.options.getString('mode', true)
-    const { totalReactions, urls, scanned } = await scanChannel(channel)
+    const sub = interaction.options.getSubcommand()
 
-    if (mode === 'count') {
+    if (sub === 'count') {
+      const { totalReactions, scanned } = await scanChannel(channel)
       await interaction.editReply(
         `Scanned ${scanned} message(s). Found ${totalReactions} :${emojiName}: reaction(s).`
       )
       return
     }
 
-    // mode === 'print'
-    if (urls.length === 0) {
-      await interaction.editReply(
-        `Scanned ${scanned} message(s). No URLs found on messages with :${emojiName}: reactions.`
-      )
-      return
-    }
-
-    const header = `Scanned ${scanned} message(s). URLs on messages with :${emojiName}: reactions:\n`
-    const maxLines = 50
-    const lines = urls.slice(0, maxLines)
-    const suffix = urls.length > maxLines ? `\n\n(Showing ${maxLines} of ${urls.length})` : ''
-
-    const body = lines.join('\n')
-    const full = header + body + suffix
-
-    // Keep it within Discord's 2000 character limit.
-    if (full.length <= 1900) {
-      await interaction.editReply(full)
-      return
-    }
-
-    // Fallback: chunk by line.
-    const chunks: string[] = []
-    let current = header
-    for (const line of lines) {
-      if ((current + line + '\n').length > 1900) {
-        chunks.push(current)
-        current = ''
+    if (sub === 'print') {
+      const { urls, scanned } = await scanChannel(channel)
+      if (urls.length === 0) {
+        await interaction.editReply(
+          `Scanned ${scanned} message(s). No URLs found on messages with :${emojiName}: reactions.`
+        )
+        return
       }
-      current += line + '\n'
-    }
-    if (current.trim().length > 0) chunks.push(current + suffix)
 
-    await interaction.editReply(chunks[0] ?? 'No output.')
-    for (const chunk of chunks.slice(1)) {
-      await interaction.followUp({ content: chunk, ephemeral: true })
+      const header = `Scanned ${scanned} message(s). URLs on messages with :${emojiName}: reactions:\n`
+      const maxLines = 50
+      const lines = urls.slice(0, maxLines)
+      const suffix = urls.length > maxLines ? `\n\n(Showing ${maxLines} of ${urls.length})` : ''
+
+      const body = lines.join('\n')
+      const full = header + body + suffix
+
+      if (full.length <= 1900) {
+        await interaction.editReply(full)
+        return
+      }
+
+      const chunks: string[] = []
+      let current = header
+      for (const line of lines) {
+        if ((current + line + '\n').length > 1900) {
+          chunks.push(current)
+          current = ''
+        }
+        current += line + '\n'
+      }
+      if (current.trim().length > 0) chunks.push(current + suffix)
+
+      await interaction.editReply(chunks[0] ?? 'No output.')
+      for (const chunk of chunks.slice(1)) {
+        await interaction.followUp({ content: chunk, ephemeral: true })
+      }
+      return
+    }
+
+    // sub === 'export'
+    const universeCode = interaction.options.getString('universe', true)
+    await exportChannel(interaction, channel, universeCode)
+  }
+}
+
+async function exportChannel (
+  interaction: ChatInputCommandInteraction,
+  channel: TextBasedChannel,
+  universeCode: string
+): Promise<void> {
+  const baseUrl = process.env.BLACKBOOK_BASE_URL?.trim()
+  const apiToken = process.env.BLACKBOOK_API_TOKEN?.trim()
+  if (!baseUrl) {
+    await interaction.editReply('Missing BLACKBOOK_BASE_URL in environment.')
+    return
+  }
+  if (!apiToken) {
+    await interaction.editReply('Missing BLACKBOOK_API_TOKEN in environment.')
+    return
+  }
+
+  const spoolDir = getSpoolDir()
+  await fs.mkdir(spoolDir, { recursive: true })
+  const indexPath = resolve(spoolDir, 'sha256-index.txt')
+  const known = await loadShaIndex(indexPath)
+
+  let scanned = 0
+  let markedMessages = 0
+  let candidates = 0
+  let uploaded = 0
+  let skipped = 0
+  let failed = 0
+
+  const cutoff = Date.now() - TWO_YEARS_MS
+  let before: string | undefined
+  let reachedCutoff = false
+
+  await interaction.editReply(
+    `Starting export to **${universeCode}**...\n` +
+    `Spool: \`${spoolDir}\``
+  )
+
+  while (scanned < MAX_MESSAGES_TO_SCAN && !reachedCutoff) {
+    const remaining = MAX_MESSAGES_TO_SCAN - scanned
+    const batchSize = Math.min(100, remaining)
+
+    const batch = await channel.messages.fetch({ limit: batchSize, before })
+    if (batch.size === 0) break
+
+    for (const msg of batch.values()) {
+      if (msg.createdTimestamp < cutoff) {
+        reachedCutoff = true
+        break
+      }
+      scanned += 1
+
+      const count = getReactionCount(msg, emojiName)
+      if (count <= 0) continue
+      markedMessages += 1
+
+      const sources = getImageSources(msg)
+      for (const src of sources) {
+        candidates += 1
+        const result = await processSource({
+          universeCode,
+          baseUrl,
+          apiToken,
+          spoolDir,
+          indexPath,
+          known,
+          src,
+          caption: `Imported from Discord: ${msg.url}`
+        })
+
+        if (result === 'uploaded') uploaded += 1
+        else if (result === 'skipped') skipped += 1
+        else failed += 1
+
+        if ((uploaded + skipped + failed) % 10 === 0) {
+          await interaction.editReply(
+            `Exporting to **${universeCode}**...\n` +
+            `Scanned: ${scanned}\n` +
+            `Marked messages: ${markedMessages}\n` +
+            `Candidates: ${candidates}\n` +
+            `Uploaded: ${uploaded}, Skipped: ${skipped}, Failed: ${failed}`
+          )
+        }
+      }
+    }
+
+    before = batch.last()?.id
+    if (!before) break
+  }
+
+  await interaction.editReply(
+    `Export complete → **${universeCode}**\n` +
+    `Scanned: ${scanned}\n` +
+    `Marked messages: ${markedMessages}\n` +
+    `Candidates: ${candidates}\n` +
+    `Uploaded: ${uploaded}\n` +
+    `Skipped (dedupe): ${skipped}\n` +
+    `Failed: ${failed}`
+  )
+}
+
+type ImageSource =
+  | { kind: 'attachment', url: string, filename?: string, contentType?: string }
+  | { kind: 'url', url: string }
+
+function getImageSources (msg: Message): ImageSource[] {
+  const out: ImageSource[] = []
+
+  for (const a of msg.attachments.values() as Iterable<Attachment>) {
+    if (isLikelyImageAttachment(a)) {
+      out.push({
+        kind: 'attachment',
+        url: a.url,
+        filename: a.name ?? undefined,
+        contentType: a.contentType ?? undefined
+      })
     }
   }
+
+  for (const url of extractUrls(msg.content)) {
+    out.push({ kind: 'url', url })
+  }
+
+  return out
+}
+
+function isLikelyImageAttachment (a: Attachment): boolean {
+  const ct = (a.contentType ?? '').toLowerCase()
+  if (ct.startsWith('image/')) return true
+  const name = (a.name ?? '').toLowerCase()
+  return name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.gif') || name.endsWith('.webp')
+}
+
+async function processSource (args: {
+  universeCode: string
+  baseUrl: string
+  apiToken: string
+  spoolDir: string
+  indexPath: string
+  known: Set<string>
+  src: ImageSource
+  caption: string
+}): Promise<'uploaded' | 'skipped' | 'failed'> {
+  try {
+    const downloaded = await downloadToSpool(args.src, args.spoolDir)
+    if (!downloaded) return 'skipped'
+
+    const { filePath, sha256 } = downloaded
+    if (args.known.has(sha256)) {
+      await fs.unlink(filePath).catch(() => {})
+      return 'skipped'
+    }
+
+    const imageId = await uploadToBlackbook({
+      baseUrl: args.baseUrl,
+      apiToken: args.apiToken,
+      universeCode: args.universeCode,
+      caption: args.caption,
+      filePath
+    })
+
+    // Record dedupe only after success so failures can be retried.
+    await appendShaIndex(args.indexPath, sha256)
+    args.known.add(sha256)
+
+    // Requested behavior: delete spool files after uploading.
+    await fs.unlink(filePath).catch(() => {})
+
+    console.log(`Uploaded to Blackbook image_id=${imageId} sha256=${sha256}`)
+    return 'uploaded'
+  } catch (e) {
+    console.error(e)
+    return 'failed'
+  }
+}
+
+async function uploadToBlackbook (args: {
+  baseUrl: string
+  apiToken: string
+  universeCode: string
+  caption: string
+  filePath: string
+}): Promise<number> {
+  const url = new URL('/api/discord_imports/images', args.baseUrl).toString()
+
+  const blob = await openAsBlob(args.filePath)
+  const filename = args.filePath.split('/').pop() ?? 'upload.bin'
+
+  const form = new FormData()
+  form.append('universe_code', args.universeCode)
+  form.append('caption', args.caption)
+  form.append('image_file', blob, filename)
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${args.apiToken}`
+    },
+    body: form
+  })
+
+  const bodyText = await resp.text()
+  if (!resp.ok) {
+    throw new Error(`Blackbook upload failed: ${resp.status} ${bodyText}`)
+  }
+
+  const parsed = JSON.parse(bodyText) as any
+  return parsed.image_id as number
+}
+
+async function downloadToSpool (
+  src: ImageSource,
+  spoolDir: string
+): Promise<null | { filePath: string, sha256: string }> {
+  const resp = await fetch(src.url)
+  if (!resp.ok) return null
+
+  const contentType = (resp.headers.get('content-type') ?? (src.kind === 'attachment' ? src.contentType : '') ?? '').toLowerCase()
+  if (!contentType.startsWith('image/')) return null
+
+  const ext = extensionFor(contentType, src)
+  const tmpPath = resolve(spoolDir, `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`)
+
+  const hasher = createHash('sha256')
+  let bytes = 0
+
+  const body = resp.body
+  if (!body) return null
+
+  const nodeStream = Readable.fromWeb(body as any)
+  nodeStream.on('data', (chunk: Buffer) => {
+    bytes += chunk.length
+    if (bytes > MAX_IMAGE_BYTES) {
+      nodeStream.destroy(new Error(`Image too large (> ${MAX_IMAGE_BYTES} bytes)`))
+      return
+    }
+    hasher.update(chunk)
+  })
+
+  await pipeline(nodeStream, createWriteStream(tmpPath))
+  const sha256 = hasher.digest('hex')
+
+  const finalPath = resolve(spoolDir, `${sha256}${ext}`)
+  try {
+    await fs.rename(tmpPath, finalPath)
+  } catch {
+    await fs.unlink(tmpPath).catch(() => {})
+  }
+
+  return { filePath: finalPath, sha256 }
+}
+
+function extensionFor (contentType: string, src: ImageSource): string {
+  if (contentType.includes('png')) return '.png'
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return '.jpg'
+  if (contentType.includes('gif')) return '.gif'
+  if (contentType.includes('webp')) return '.webp'
+
+  try {
+    const pathname = new URL(src.url).pathname.toLowerCase()
+    const m = pathname.match(/\.(png|jpe?g|gif|webp)$/)
+    if (m) return `.${m[1] === 'jpeg' ? 'jpg' : m[1]}`
+  } catch {}
+
+  return ''
+}
+
+function getSpoolDir (): string {
+  const env = process.env.MEMO_SPOOL_DIR?.trim()
+  if (env) return env
+  return resolve(process.cwd(), 'data/blackbook-spool')
+}
+
+async function loadShaIndex (indexPath: string): Promise<Set<string>> {
+  try {
+    const buf = await fs.readFile(indexPath, 'utf8')
+    const set = new Set<string>()
+    for (const line of buf.split(/\r?\n/)) {
+      const v = line.trim()
+      if (v) set.add(v)
+    }
+    return set
+  } catch {
+    return new Set<string>()
+  }
+}
+
+async function appendShaIndex (indexPath: string, sha256: string): Promise<void> {
+  await fs.appendFile(indexPath, `${sha256}\n`, 'utf8')
 }
 
 async function scanChannel (channel: TextBasedChannel): Promise<{
