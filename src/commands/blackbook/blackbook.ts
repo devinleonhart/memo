@@ -1,5 +1,10 @@
 import { SlashCommandBuilder } from '@discordjs/builders'
-import { type ChatInputCommandInteraction, type Message, type TextBasedChannel } from 'discord.js'
+import {
+  type ChatInputCommandInteraction,
+  type Message,
+  PermissionFlagsBits,
+  type TextBasedChannel
+} from 'discord.js'
 
 const commandName = 'blackbook'
 const emojiName = 'blackbookit'
@@ -30,6 +35,26 @@ module.exports = {
     if (!channel || !channel.isTextBased()) {
       await interaction.editReply('This command must be run in a text-based channel.')
       return
+    }
+
+    // Permission check (guild channels). DMs don't use these permissions.
+    if (interaction.inGuild()) {
+      const me = interaction.guild?.members.me
+      const perms = 'permissionsFor' in channel
+        ? (channel as any).permissionsFor(me ?? interaction.client.user)
+        : undefined
+      const missing: string[] = []
+
+      if (!perms?.has(PermissionFlagsBits.ViewChannel)) missing.push('View Channel')
+      if (!perms?.has(PermissionFlagsBits.ReadMessageHistory)) missing.push('Read Message History')
+
+      if (missing.length > 0) {
+        await interaction.editReply(
+          `I can’t read this channel’s history. Missing permission(s): ${missing.join(', ')}.\n` +
+          `Fix: give the bot role those permissions in this channel, or re-invite the bot with them.`
+        )
+        return
+      }
     }
 
     const mode = interaction.options.getString('mode', true)
