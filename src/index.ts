@@ -15,7 +15,11 @@ import settings from './settings'
   }
 
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildMessageReactions
+    ]
   })
 
   client.commands = new Collection()

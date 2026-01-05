@@ -2,9 +2,11 @@
 
 A small Discord bot.
 
-## What it does (so far)
+## What it does
 
-- `/memo`: responds with `hello`
+- `/blackbook mode:<count|print>`: scans the current channel’s history for `:blackbookit:` reactions
+  - `count`: prints the total number of `:blackbookit:` reactions found
+  - `print`: prints all URLs found on messages that have a `:blackbookit:` reaction
 
 ## Prereqs
 
@@ -21,7 +23,7 @@ A small Discord bot.
    - Copy the **Token** (you’ll put it in your `.env`)
 4. **OAuth2 → URL Generator**
    - **Scopes**: `bot`, `applications.commands`
-   - **Bot Permissions** (minimum): `Send Messages`
+   - **Bot Permissions** (minimum): `View Channels`, `Read Message History`, `Send Messages`
 5. Use the generated URL to invite the bot to your server.
 
 ## Configure env vars
@@ -29,9 +31,9 @@ A small Discord bot.
 Copy `env.example` to `.env` and fill in values:
 
 - `MEMO_SECRET_KEY`: your bot token
-- `MEMO_CLIENT_ID`: Application ID (Developer Portal → General Information)
-- `MEMO_GUILD_ID`: your server ID (right click server → Copy Server ID)
-- `MEMO_COMMANDS_SCOPE`: `guild` (fast dev) or `global` (public; slower to propagate)
+- `MEMO_CLIENT_ID`: Application ID
+- `MEMO_GUILD_ID`: your server ID
+- `MEMO_COMMANDS_SCOPE`: `guild`
 
 ## Run locally
 
@@ -46,7 +48,7 @@ The bot registers slash commands on startup.
 - If `MEMO_COMMANDS_SCOPE=guild`, changes appear immediately in that server.
 - If `MEMO_COMMANDS_SCOPE=global`, updates can take a while to appear.
 
-## Docker (optional)
+## Docker
 
 ```bash
 cd /Users/devin/source/memo
