@@ -1,0 +1,13 @@
+import { type Client, Events } from 'discord.js'
+
+module.exports = {
+  name: Events.ClientReady,
+  once: true,
+  async execute (client: Client) {
+    console.log(`Ready! Logged in as ${client.user?.tag}!`)
+    if (process.env.MEMO_EXIT_AFTER_READY === '1') {
+      // Helpful for automated smoke tests where we just want to confirm login works.
+      setTimeout(() => process.exit(0), 250)
+    }
+  }
+}
