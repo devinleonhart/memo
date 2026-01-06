@@ -8,16 +8,15 @@ import { type Attachment, type Message } from 'discord.js'
 export const BLACKBOOK_REACTION_EMOJI = 'blackbookit'
 
 export const BLACKBOOK_UNIVERSE_CHOICES: Array<{ name: string, value: string }> = [
-  { name: 'Universe One (U1)', value: 'U1' },
-  { name: 'Universe Two (U2)', value: 'U2' },
-  { name: 'Universe Three (U3)', value: 'U3' },
-  { name: 'Universe Four (U4)', value: 'U4' },
-  { name: 'Universe Five (U5)', value: 'U5' },
-  { name: 'Universe Six (U6)', value: 'U6' }
+  { name: 'Universe One — U1', value: 'U1' },
+  { name: 'Universe Two — U2', value: 'U2' },
+  { name: 'Universe Three — U3', value: 'U3' },
+  { name: 'Universe Four — U4', value: 'U4' },
+  { name: 'Universe Five — U5', value: 'U5' },
+  { name: 'Universe Six — U6', value: 'U6' }
 ]
 
-// Safety cap for any single download.
-const MAX_IMAGE_BYTES = 100 * 1024 * 1024 // 100MB
+const MAX_IMAGE_BYTES = 100 * 1024 * 1024
 
 type ImageSource =
   | { kind: 'attachment', url: string, filename?: string, contentType?: string }
@@ -42,7 +41,6 @@ export function getImageSources (msg: Message): ImageSource[] {
     }
   }
 
-  // This may be empty in guilds without the Message Content intent; attachments still work fine.
   for (const url of extractUrls(msg.content)) {
     out.push({ kind: 'url', url })
   }
@@ -115,11 +113,9 @@ export async function processSource (args: {
       filePath
     })
 
-    // Record dedupe only after success so failures can be retried.
     await appendShaIndex(args.indexPath, sha256)
     args.known.add(sha256)
 
-    // Requested behavior: delete spool files after uploading.
     await fs.unlink(filePath).catch(() => {})
 
     console.log(`Uploaded to Blackbook image_id=${imageId} sha256=${sha256}`)
@@ -150,8 +146,6 @@ async function uploadToBlackbook (args: {
   try {
     return await doUpload(primaryUrl, args.apiToken, form, args.baseUrl)
   } catch (error: any) {
-    // Common production failure: using https://blackbook:3000 even though the internal service is plain HTTP.
-    // That yields SSL errors like "packet length too long".
     const canRetryHttp =
       looksLikeSslProtocolError(error) &&
       isLikelyInternalServiceUrl(args.baseUrl)
@@ -161,7 +155,6 @@ async function uploadToBlackbook (args: {
     const httpBase = forceHttp(args.baseUrl)
     const retryUrl = new URL('/api/discord_imports/images', httpBase).toString()
 
-    // Re-open the blob for retry because the previous request body may have been consumed.
     const retryBlob = await openAsBlob(args.filePath)
     const retryForm = new FormData()
     retryForm.append('universe_code', args.universeCode)
@@ -180,13 +173,10 @@ async function doUpload (
 ): Promise<number> {
   const resp = await fetch(url, {
     method: 'POST',
-    // Prevent Rails force_ssl redirects when calling the internal HTTP service.
-    // (Blackbook is behind nginx in prod; internally it's still HTTP on :3000.)
     headers: {
       Authorization: `Bearer ${apiToken}`,
       'X-Forwarded-Proto': 'https'
     },
-    // Don't auto-follow redirects; a 301 here is a misconfiguration signal.
     redirect: 'manual',
     body: form
   })
@@ -216,7 +206,6 @@ function looksLikeSslProtocolError (error: any): boolean {
 function isLikelyInternalServiceUrl (baseUrl: string): boolean {
   try {
     const u = new URL(baseUrl)
-    // docker-compose service name + typical Rails port
     return u.hostname === 'blackbook' || (u.hostname === 'localhost' && u.port === '3000')
   } catch {
     return false
@@ -252,7 +241,7 @@ async function downloadToSpool (
   nodeStream.on('data', (chunk: Buffer) => {
     bytes += chunk.length
     if (bytes > MAX_IMAGE_BYTES) {
-      nodeStream.destroy(new Error(`Image too large (> ${MAX_IMAGE_BYTES} bytes)`))
+      nodeStream.destroy(new Error(`Image exceeds the maximum allowed size of ${MAX_IMAGE_BYTES} bytes.`))
       return
     }
     hasher.update(chunk)

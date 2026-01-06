@@ -27,14 +27,14 @@ module.exports = (client: Client) => {
     const rest = new REST().setToken(settings.secretKey)
 
     try {
-      console.log(`Started refreshing ${commands.length} application (/) commands.`)
+      console.log(`Started refreshing ${commands.length} application slash commands.`)
 
       const route = settings.commandsScope === 'global'
         ? Routes.applicationCommands(settings.clientID)
         : Routes.applicationGuildCommands(settings.clientID, settings.guildID)
 
       const data = await rest.put(route, { body: commands }) as unknown[]
-      console.log(`Successfully reloaded ${data.length} application (/) commands.`)
+      console.log(`Successfully reloaded ${data.length} application slash commands.`)
     } catch (error) {
       console.error(error)
     }

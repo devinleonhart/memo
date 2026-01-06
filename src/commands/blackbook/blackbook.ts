@@ -21,23 +21,17 @@ import {
 const commandName = 'blackbook'
 const emojiName = BLACKBOOK_REACTION_EMOJI
 
-// Scan up to 2 years of history, capped to avoid unbounded work.
 const MAX_MESSAGES_TO_SCAN = 100_000
 const TWO_YEARS_MS = 1000 * 60 * 60 * 24 * 365 * 2
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName(commandName)
-    .setDescription('Scan channel history for :blackbookit: reactions.')
+    .setDescription('Review channel history for :blackbookit: reactions.')
     .addSubcommand(sub =>
       sub
         .setName('count')
         .setDescription('Count :blackbookit: reactions in this channel.')
-    )
-    .addSubcommand(sub =>
-      sub
-        .setName('print')
-        .setDescription('Print URLs found on messages with :blackbookit: reactions in this channel.')
     )
     .addSubcommand(sub =>
       sub
@@ -46,7 +40,7 @@ module.exports = {
         .addStringOption(opt =>
           opt
             .setName('universe')
-            .setDescription('Which Blackbook universe to upload into.')
+            .setDescription('Choose the Blackbook universe to upload into.')
             .setRequired(true)
             .addChoices(...BLACKBOOK_UNIVERSE_CHOICES)
         )
@@ -57,11 +51,10 @@ module.exports = {
 
     const channel = interaction.channel
     if (!channel || !channel.isTextBased()) {
-      await interaction.editReply('This command must be run in a text-based channel.')
+      await interaction.editReply('Please run this command in a text channel.')
       return
     }
 
-    // Permission check (guild channels). DMs don't use these permissions.
     if (interaction.inGuild()) {
       const me = interaction.guild?.members.me
       const perms = 'permissionsFor' in channel
@@ -74,8 +67,8 @@ module.exports = {
 
       if (missing.length > 0) {
         await interaction.editReply(
-          `I can’t read this channel’s history. Missing permission(s): ${missing.join(', ')}.\n` +
-          'Fix: give the bot role those permissions in this channel, or re-invite the bot with them.'
+          `I can’t read this channel’s message history. I am missing these permissions: ${missing.join(', ')}.\n` +
+          'Please grant these permissions to the bot role in this channel, or re-invite the bot with them enabled.'
         )
         return
       }
@@ -86,52 +79,11 @@ module.exports = {
     if (sub === 'count') {
       const { totalReactions, scanned } = await scanChannel(channel)
       await interaction.editReply(
-        `Scanned ${scanned} message(s). Found ${totalReactions} :${emojiName}: reaction(s).`
+        `Reviewed ${scanned} messages. Found ${totalReactions} :${emojiName}: reactions.`
       )
       return
     }
 
-    if (sub === 'print') {
-      const { urls, scanned } = await scanChannel(channel)
-      if (urls.length === 0) {
-        await interaction.editReply(
-          `Scanned ${scanned} message(s). No URLs found on messages with :${emojiName}: reactions.`
-        )
-        return
-      }
-
-      const header = `Scanned ${scanned} message(s). URLs on messages with :${emojiName}: reactions:\n`
-      const maxLines = 50
-      const lines = urls.slice(0, maxLines)
-      const suffix = urls.length > maxLines ? `\n\n(Showing ${maxLines} of ${urls.length})` : ''
-
-      const body = lines.join('\n')
-      const full = header + body + suffix
-
-      if (full.length <= 1900) {
-        await interaction.editReply(full)
-        return
-      }
-
-      const chunks: string[] = []
-      let current = header
-      for (const line of lines) {
-        if ((current + line + '\n').length > 1900) {
-          chunks.push(current)
-          current = ''
-        }
-        current += line + '\n'
-      }
-      if (current.trim().length > 0) chunks.push(current + suffix)
-
-      await interaction.editReply(chunks[0] ?? 'No output.')
-      for (const chunk of chunks.slice(1)) {
-        await interaction.followUp({ content: chunk, flags: MessageFlags.Ephemeral })
-      }
-      return
-    }
-
-    // sub === 'export'
     const universeCode = interaction.options.getString('universe', true)
     await exportChannel(interaction, channel, universeCode)
   }
@@ -145,11 +97,11 @@ async function exportChannel (
   const baseUrl = process.env.BLACKBOOK_BASE_URL?.trim()
   const apiToken = process.env.BLACKBOOK_API_TOKEN?.trim()
   if (!baseUrl) {
-    await interaction.editReply('Missing BLACKBOOK_BASE_URL in environment.')
+    await interaction.editReply('This bot is missing `BLACKBOOK_BASE_URL` in its environment.')
     return
   }
   if (!apiToken) {
-    await interaction.editReply('Missing BLACKBOOK_API_TOKEN in environment.')
+    await interaction.editReply('This bot is missing `BLACKBOOK_API_TOKEN` in its environment.')
     return
   }
 
@@ -170,8 +122,8 @@ async function exportChannel (
   let reachedCutoff = false
 
   await interaction.editReply(
-    `Starting export to **${universeCode}**...\n` +
-    `Spool: \`${spoolDir}\``
+    `Starting export to **${universeCode}**.\n` +
+    `Using spool directory: \`${spoolDir}\``
   )
 
   while (scanned < MAX_MESSAGES_TO_SCAN && !reachedCutoff) {
@@ -212,11 +164,13 @@ async function exportChannel (
 
         if ((uploaded + skipped + failed) % 10 === 0) {
           await interaction.editReply(
-            `Exporting to **${universeCode}**...\n` +
+            `Exporting to **${universeCode}**.\n` +
             `Scanned: ${scanned}\n` +
             `Marked messages: ${markedMessages}\n` +
             `Candidates: ${candidates}\n` +
-            `Uploaded: ${uploaded}, Skipped: ${skipped}, Failed: ${failed}`
+            `Uploaded: ${uploaded}\n` +
+            `Skipped: ${skipped}\n` +
+            `Failed: ${failed}`
           )
         }
       }
@@ -227,12 +181,12 @@ async function exportChannel (
   }
 
   await interaction.editReply(
-    `Export complete → **${universeCode}**\n` +
+    `Export complete for **${universeCode}**.\n` +
     `Scanned: ${scanned}\n` +
     `Marked messages: ${markedMessages}\n` +
     `Candidates: ${candidates}\n` +
     `Uploaded: ${uploaded}\n` +
-    `Skipped (dedupe): ${skipped}\n` +
+    `Skipped due to deduplication: ${skipped}\n` +
     `Failed: ${failed}`
   )
 }
@@ -277,5 +231,3 @@ async function scanChannel (channel: TextBasedChannel): Promise<{
 
   return { scanned, totalReactions, urls: Array.from(urlSet) }
 }
-
-// getReactionCount/getImageSources/extractUrls live in src/services/blackbookImport.ts

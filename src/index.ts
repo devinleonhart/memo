@@ -5,10 +5,10 @@ import settings from './settings'
 
 (async () => {
   if (!settings.secretKey) {
-    throw new Error('Missing MEMO_SECRET_KEY (bot token). Set it in your .env.')
+    throw new Error('Missing MEMO_SECRET_KEY. Set it in your .env as the bot token.')
   }
   if (!settings.clientID) {
-    throw new Error('Missing MEMO_CLIENT_ID (application id). Set it in your .env.')
+    throw new Error('Missing MEMO_CLIENT_ID. Set it in your .env as the application id.')
   }
   if (settings.commandsScope === 'guild' && !settings.guildID) {
     throw new Error('MEMO_COMMANDS_SCOPE=guild requires MEMO_GUILD_ID. Set it in your .env.')

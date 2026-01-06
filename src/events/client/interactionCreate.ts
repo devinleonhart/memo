@@ -17,7 +17,10 @@ async function handleExecute (instance: any, interaction: any): Promise<void> {
   } catch (error) {
     console.error(error)
     if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: 'Something went wrong.', ephemeral: true })
+      await interaction.reply({
+        content: 'I’m sorry... something went wrong while handling that request.',
+        ephemeral: true
+      })
     }
   }
 }
