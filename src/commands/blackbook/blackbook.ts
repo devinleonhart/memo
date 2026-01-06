@@ -1,7 +1,6 @@
 import { SlashCommandBuilder } from '@discordjs/builders'
 import {
   type ChatInputCommandInteraction,
-  MessageFlags,
   PermissionFlagsBits,
   type TextBasedChannel
 } from 'discord.js'
@@ -47,7 +46,7 @@ module.exports = {
     ),
 
   async execute (interaction: ChatInputCommandInteraction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+    await interaction.deferReply({ ephemeral: true })
 
     const channel = interaction.channel
     if (!channel || !channel.isTextBased()) {

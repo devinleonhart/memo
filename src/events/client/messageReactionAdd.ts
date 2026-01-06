@@ -94,7 +94,7 @@ module.exports = {
           return
         }
 
-        await prompt.edit({ content: `Uploading…`, components: [] })
+        await prompt.edit({ components: [] }).catch(() => {})
 
         const spoolDir = getSpoolDir()
         await fs.mkdir(spoolDir, { recursive: true })
