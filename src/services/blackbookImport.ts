@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
-import { createWriteStream, openAsBlob, promises as fs } from 'fs'
+import { createWriteStream, openAsBlob, promises as fs, constants as FS_CONSTANTS } from 'fs'
+import { tmpdir } from 'os'
 import { resolve } from 'path'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
@@ -65,6 +66,31 @@ export function getSpoolDir (): string {
   const env = process.env.MEMO_SPOOL_DIR?.trim()
   if (env) return env
   return resolve(process.cwd(), 'data/blackbook-spool')
+}
+
+export async function resolveWritableSpoolDir (preferredDir?: string): Promise<string> {
+  const preferred = preferredDir?.trim() || getSpoolDir()
+  const fallbacks = [
+    // Typical containerized dev setup writes here (docker-compose mounts ./data → /app/data)
+    resolve(process.cwd(), 'data/blackbook-spool'),
+    resolve(tmpdir(), 'memo-blackbook-spool')
+  ]
+
+  for (const dir of [preferred, ...fallbacks]) {
+    try {
+      await fs.mkdir(dir, { recursive: true })
+      await fs.access(dir, FS_CONSTANTS.W_OK)
+      return dir
+    } catch (e: any) {
+      const code = String(e?.code ?? '')
+      if (dir === preferred) {
+        console.error(`Spool dir not writable: ${preferred} code=${code}`)
+      }
+    }
+  }
+
+  // If all else fails, return preferred and let the caller surface the real error.
+  return preferred
 }
 
 export async function loadShaIndex (indexPath: string): Promise<Set<string>> {

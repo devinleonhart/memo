@@ -17,7 +17,8 @@ describe('messageReactionAdd flow', () => {
 
   it('uploads sources after selection and deletes the in-channel prompt', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined)
-    vi.doMock('fs', () => ({ promises: { mkdir } }))
+    const access = vi.fn().mockResolvedValue(undefined)
+    vi.doMock('fs', () => ({ promises: { mkdir, access }, constants: { W_OK: 2 } }))
 
     const processSource = vi.fn().mockResolvedValue('uploaded')
     const loadShaIndex = vi.fn().mockResolvedValue(new Set<string>())
@@ -79,7 +80,7 @@ describe('messageReactionAdd flow', () => {
 
     await handlers.collect(i)
 
-    expect(mkdir).toHaveBeenCalledTimes(1)
+    expect(mkdir).toHaveBeenCalledTimes(2)
     expect(loadShaIndex).toHaveBeenCalledTimes(1)
     expect(processSource).toHaveBeenCalledTimes(1)
     expect(prompt.delete).toHaveBeenCalledTimes(1)

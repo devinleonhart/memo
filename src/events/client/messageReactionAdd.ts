@@ -18,7 +18,8 @@ import {
   getImageSources,
   getSpoolDir,
   loadShaIndex,
-  processSource
+  processSource,
+  resolveWritableSpoolDir
 } from '../../services/blackbookImport'
 
 const inflight = new Set<string>()
@@ -114,7 +115,9 @@ module.exports = {
           return
         }
 
-        const spoolDir = getSpoolDir()
+        const spoolDir = await resolveWritableSpoolDir(getSpoolDir())
+        // `resolveWritableSpoolDir()` does mkdir/access checks; keep a minimal
+        // mkdir here to handle rare race conditions (e.g. directory removed).
         await fs.mkdir(spoolDir, { recursive: true })
         const indexPath = resolve(spoolDir, 'sha256-index.txt')
         const known = await loadShaIndex(indexPath)
