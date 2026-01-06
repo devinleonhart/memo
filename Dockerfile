@@ -1,13 +1,26 @@
-FROM node:24.8.0-alpine3.21
+FROM node:24.8.0-alpine3.21 AS build
 
-RUN npm install -g pnpm
-
-RUN mkdir app
 WORKDIR /app
+RUN corepack enable
 
-COPY ./src/ ./src
-COPY ["./tsconfig.json", "./package.json", "./"]
+COPY package.json pnpm-lock.yaml tsconfig.json ./
+RUN pnpm install --frozen-lockfile
 
-RUN pnpm i && pnpm build
+COPY src ./src
+RUN pnpm build
 
-CMD ["pnpm", "start"]
+FROM node:24.8.0-alpine3.21 AS runtime
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
+COPY --from=build /app/dist ./dist
+
+RUN addgroup -S memo && adduser -S memo -G memo
+USER memo
+
+CMD ["node", "dist/index.js"]
