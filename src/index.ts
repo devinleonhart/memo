@@ -1,6 +1,6 @@
 import { readdirSync } from 'fs'
 import { resolve } from 'path'
-import { Client, Collection, GatewayIntentBits } from 'discord.js'
+import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js'
 import settings from './settings'
 
 (async () => {
@@ -19,6 +19,12 @@ import settings from './settings'
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.GuildMessageReactions
+    ],
+    partials: [
+      Partials.Message,
+      Partials.Channel,
+      Partials.Reaction,
+      Partials.User
     ]
   })
 
