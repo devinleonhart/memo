@@ -24,6 +24,7 @@ import {
 const inflight = new Set<string>()
 const PROMPT_TTL_MS = 60_000
 const ERROR_TTL_MS = 10_000
+const FAILURE_TTL_MS = 60_000
 
 module.exports = {
   name: Events.MessageReactionAdd,
@@ -40,7 +41,18 @@ module.exports = {
     // For robustness (especially for URL extraction), always fetch the message.
     // In practice, `reaction.message` may be non-partial yet still missing `content`
     // depending on cache/state; fetching aligns behavior with `/blackbook export`.
-    const msg = await reaction.message.fetch().catch(() => null)
+    const msg = await reaction.message.fetch().catch(async (e) => {
+      console.error('blackbookit: failed to fetch message for reaction upload', e)
+      const base: any = reaction.message as any
+      if (base?.reply) {
+        await sendTempReply(base, {
+          content:
+            `I couldn’t read that message to upload it (fetch failed).\n` +
+            `Make sure I have **View Channel** + **Read Message History** in this channel.`
+        }, FAILURE_TTL_MS)
+      }
+      return null
+    })
     if (!msg) return
 
     const sources = getImageSources(msg)
@@ -107,8 +119,12 @@ module.exports = {
         const indexPath = resolve(spoolDir, 'sha256-index.txt')
         const known = await loadShaIndex(indexPath)
 
+        let uploaded = 0
+        let skipped = 0
+        let failed = 0
+
         for (const src of sources) {
-          await processSource({
+          const result = await processSource({
             universeCode,
             baseUrl,
             apiToken,
@@ -118,7 +134,29 @@ module.exports = {
             src,
             caption: `Imported from Discord reaction: ${msg.url}`
           })
+          if (result === 'uploaded') uploaded += 1
+          else if (result === 'skipped') skipped += 1
+          else failed += 1
         }
+
+        if (failed > 0 || uploaded === 0) {
+          console.error(
+            `blackbookit: upload summary msg=${msg.id} user=${user.id} universe=${universeCode} uploaded=${uploaded} skipped=${skipped} failed=${failed}`
+          )
+          await prompt.edit({
+            content:
+              `Blackbook upload result for **${universeCode}**:\n` +
+              `Uploaded: ${uploaded}\n` +
+              `Skipped: ${skipped}\n` +
+              `Failed: ${failed}\n\n` +
+              `If this is a link upload, it may be getting skipped because the URL doesn’t return an \`image/*\` content-type. ` +
+              `Check the bot logs for details.`,
+            components: []
+          }).catch(() => {})
+          scheduleDelete(prompt, FAILURE_TTL_MS)
+          return
+        }
+
         await prompt.delete().catch(() => {})
       } finally {
         inflight.delete(key)
@@ -141,7 +179,7 @@ async function safeReply (msg: Message, payload: any): Promise<any | null> {
   }
 }
 
-async function sendTempReply (msg: Message, payload: any, ttlMs: number): Promise<void> {
+async function sendTempReply (msg: any, payload: any, ttlMs: number): Promise<void> {
   const sent = await safeReply(msg, { ...payload, allowedMentions: { repliedUser: false, parse: [] } })
   if (!sent) return
   scheduleDelete(sent, ttlMs)
