@@ -18,6 +18,9 @@ import settings from './settings'
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      // Needed so we can read message content and extract image URLs
+      // for the :blackbookit: reaction flow (export also benefits).
+      GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMessageReactions
     ],
     partials: [

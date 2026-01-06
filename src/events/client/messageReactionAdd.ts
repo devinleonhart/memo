@@ -7,7 +7,8 @@ import {
   type Collection,
   type Client,
   type MessageReaction,
-  type User
+  type User,
+  type Message
 } from 'discord.js'
 import { promises as fs } from 'fs'
 import { resolve } from 'path'
@@ -21,6 +22,8 @@ import {
 } from '../../services/blackbookImport'
 
 const inflight = new Set<string>()
+const PROMPT_TTL_MS = 60_000
+const ERROR_TTL_MS = 10_000
 
 module.exports = {
   name: Events.MessageReactionAdd,
@@ -34,18 +37,19 @@ module.exports = {
       try { await reaction.fetch() } catch { return }
     }
 
-    const msg = reaction.message.partial
-      ? await reaction.message.fetch().catch(() => null)
-      : reaction.message
+    // For robustness (especially for URL extraction), always fetch the message.
+    // In practice, `reaction.message` may be non-partial yet still missing `content`
+    // depending on cache/state; fetching aligns behavior with `/blackbook export`.
+    const msg = await reaction.message.fetch().catch(() => null)
     if (!msg) return
 
     const sources = getImageSources(msg)
     if (sources.length === 0) {
-      await sendPrivate(user, {
+      await sendTempReply(msg, {
         content:
-          `I didn’t find an image attachment on that message to upload.\n` +
-          `If the image is a link, please post it as an attachment or use \`/blackbook export\`.`
-      })
+          `I didn’t find an image attachment or image URL on that message to upload.\n` +
+          `If the image is a link, make sure the bot can read message content (Message Content Intent), or use \`/blackbook export\`.`
+      }, ERROR_TTL_MS)
       return
     }
 
@@ -61,10 +65,10 @@ module.exports = {
 
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)
 
-    const prompt = await sendPrivate(user, {
-      content:
-        `Please select the Blackbook universe for this image:`,
-      components: [row]
+    const prompt = await safeReply(msg, {
+      content: 'Select the Blackbook universe for this image:',
+      components: [row],
+      allowedMentions: { repliedUser: false, parse: [] }
     })
     if (!prompt) {
       inflight.delete(key)
@@ -73,7 +77,7 @@ module.exports = {
 
     const collector = prompt.createMessageComponentCollector({
       componentType: ComponentType.StringSelect,
-      time: 60_000,
+      time: PROMPT_TTL_MS,
       max: 1,
       filter: (i: StringSelectMenuInteraction) => i.user.id === user.id && i.customId === customId
     })
@@ -83,18 +87,20 @@ module.exports = {
       await i.deferUpdate()
 
       try {
+        await prompt.edit({ components: [] }).catch(() => {})
+
         const baseUrl = process.env.BLACKBOOK_BASE_URL?.trim()
         const apiToken = process.env.BLACKBOOK_API_TOKEN?.trim()
         if (!baseUrl) {
-          await prompt.edit({ content: 'Missing `BLACKBOOK_BASE_URL` in environment.', components: [] })
+          await prompt.edit({ content: 'Missing `BLACKBOOK_BASE_URL` in environment.', components: [] }).catch(() => {})
+          scheduleDelete(prompt, ERROR_TTL_MS)
           return
         }
         if (!apiToken) {
-          await prompt.edit({ content: 'Missing `BLACKBOOK_API_TOKEN` in environment.', components: [] })
+          await prompt.edit({ content: 'Missing `BLACKBOOK_API_TOKEN` in environment.', components: [] }).catch(() => {})
+          scheduleDelete(prompt, ERROR_TTL_MS)
           return
         }
-
-        await prompt.edit({ components: [] }).catch(() => {})
 
         const spoolDir = getSpoolDir()
         await fs.mkdir(spoolDir, { recursive: true })
@@ -127,11 +133,23 @@ module.exports = {
   }
 }
 
-async function sendPrivate (user: User, payload: any): Promise<any | null> {
+async function safeReply (msg: Message, payload: any): Promise<any | null> {
   try {
-    const dm = await user.createDM()
-    return await dm.send(payload)
+    return await msg.reply(payload)
   } catch {
     return null
   }
+}
+
+async function sendTempReply (msg: Message, payload: any, ttlMs: number): Promise<void> {
+  const sent = await safeReply(msg, { ...payload, allowedMentions: { repliedUser: false, parse: [] } })
+  if (!sent) return
+  scheduleDelete(sent, ttlMs)
+}
+
+function scheduleDelete (msg: any, ttlMs: number): void {
+  try {
+    const t: any = setTimeout(() => { void msg.delete().catch(() => {}) }, ttlMs)
+    t?.unref?.()
+  } catch {}
 }

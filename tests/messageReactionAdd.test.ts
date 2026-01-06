@@ -13,10 +13,10 @@ describe('messageReactionAdd event', () => {
     await handler.execute(reaction, user, {} as any)
   })
 
-  it('DMs the user when no image sources are found', async () => {
-    const send = vi.fn().mockResolvedValue(undefined)
-    const createDM = vi.fn().mockResolvedValue({ send })
-    const user = { bot: false, createDM } as any
+  it('replies briefly in-channel when no image sources are found', async () => {
+    const deleteFn = vi.fn().mockResolvedValue(undefined)
+    const reply = vi.fn().mockResolvedValue({ delete: deleteFn })
+    const user = { bot: false } as any
 
     const reaction = {
       emoji: { name: 'blackbookit' },
@@ -24,7 +24,9 @@ describe('messageReactionAdd event', () => {
       message: {
         partial: false,
         attachments: new Map(),
-        content: ''
+        content: '',
+        reply,
+        fetch: vi.fn().mockImplementation(async function () { return this })
       }
     } as any
 
@@ -32,9 +34,8 @@ describe('messageReactionAdd event', () => {
     const handler = (mod as any).default ?? (mod as any)
     await handler.execute(reaction, user, {} as any)
 
-    expect(createDM).toHaveBeenCalledTimes(1)
-    expect(send).toHaveBeenCalledTimes(1)
-    const payload = send.mock.calls[0]?.[0]
+    expect(reply).toHaveBeenCalledTimes(1)
+    const payload = reply.mock.calls[0]?.[0]
     expect(String(payload?.content ?? '')).toContain('I didn’t find an image attachment')
   })
 })

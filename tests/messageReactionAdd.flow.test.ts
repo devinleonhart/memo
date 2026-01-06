@@ -15,7 +15,7 @@ describe('messageReactionAdd flow', () => {
     vi.resetModules()
   })
 
-  it('uploads sources after selection and deletes the DM prompt', async () => {
+  it('uploads sources after selection and deletes the in-channel prompt', async () => {
     const mkdir = vi.fn().mockResolvedValue(undefined)
     vi.doMock('fs', () => ({ promises: { mkdir } }))
 
@@ -47,8 +47,7 @@ describe('messageReactionAdd flow', () => {
     } as any
     prompt.createMessageComponentCollector.mockReturnValue(collector)
 
-    const dm = { send: vi.fn().mockResolvedValue(prompt) }
-    const user = { bot: false, createDM: vi.fn().mockResolvedValue(dm), id: 'u1' } as any
+    const user = { bot: false, id: 'u1' } as any
 
     const reaction = {
       emoji: { name: 'blackbookit' },
@@ -58,7 +57,9 @@ describe('messageReactionAdd flow', () => {
         partial: false,
         url: 'https://discord.example/messages/m1',
         attachments: new Map([['1', { url: 'https://cdn.example/a.png', contentType: 'image/png', name: 'a.png' }]]),
-        content: ''
+        content: '',
+        reply: vi.fn().mockResolvedValue(prompt),
+        fetch: vi.fn().mockImplementation(async function () { return this })
       }
     } as any
 
@@ -66,7 +67,7 @@ describe('messageReactionAdd flow', () => {
     const handler = (mod as any).default ?? (mod as any)
     await handler.execute(reaction, user, {} as any)
 
-    expect(dm.send).toHaveBeenCalledTimes(1)
+    expect(reaction.message.reply).toHaveBeenCalledTimes(1)
     expect(typeof handlers.collect).toBe('function')
 
     const i = {
