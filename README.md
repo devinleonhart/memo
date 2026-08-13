@@ -10,6 +10,13 @@ Create `.env` and fill in values:
 - `MEMO_CLIENT_ID`: Application ID
 - `MEMO_GUILD_ID`: Your server ID
 - `MEMO_COMMANDS_SCOPE`: `guild`
+- `EMOTE_BASE_URL` (optional): base URL of the emote generator, defaults to `https://emote.devleo.me`
+
+## Commands
+
+- `/emote` — Generate a character emote and post it as an embed. The
+  `character`, `eyebrows`, `eyes`, `mouth`, and optional `head` options are
+  autocompleted from the emote generator's live catalog.
 
 ## Docker
 
