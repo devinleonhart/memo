@@ -75,7 +75,7 @@ describe('blackbook command', () => {
       inGuild: () => false,
       options: {
         getSubcommand: () => 'export',
-        getString: () => 'U1'
+        getString: () => 'AA'
       },
       editReply
     } as any

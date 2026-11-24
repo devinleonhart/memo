@@ -29,7 +29,7 @@ describe('messageReactionAdd flow', () => {
       return {
         ...actual,
         BLACKBOOK_REACTION_EMOJI: 'blackbookit',
-        BLACKBOOK_UNIVERSE_CHOICES: [{ name: 'Universe One — U1', value: 'U1' }],
+        getUniverseChoices: () => [{ name: 'First World — AA', value: 'AA' }],
         getSpoolDir,
         loadShaIndex,
         processSource
@@ -72,7 +72,7 @@ describe('messageReactionAdd flow', () => {
     expect(typeof handlers.collect).toBe('function')
 
     const i = {
-      values: ['U1'],
+      values: ['AA'],
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       user: { id: 'u1' },
       customId: 'blackbookit:universe:m1:u1'

@@ -4,6 +4,20 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { processSource } from '../src/services/blackbookImport'
 
+// Downloads go through fetchPublic; uploads through fetch.
+const download = vi.hoisted(() => ({ urls: [] as string[], answer: null as any }))
+vi.mock('../src/services/publicFetch', async () => {
+  const { Readable } = await import('node:stream')
+  return {
+    fetchPublic: async (url: string) => {
+      download.urls.push(url)
+      if (download.answer instanceof Error) throw download.answer
+      const answer = download.answer ?? { status: 200, contentType: 'image/png' }
+      return { ...answer, ok: answer.status === 200, body: Readable.from([Buffer.from([1, 2, 3])]) }
+    }
+  }
+})
+
 describe('blackbookImport processSource', () => {
   const savedEnv = { ...process.env }
   const originalFetch = globalThis.fetch
@@ -11,6 +25,8 @@ describe('blackbookImport processSource', () => {
   beforeEach(() => {
     process.env = { ...savedEnv }
     vi.restoreAllMocks()
+    download.urls = []
+    download.answer = null
   })
 
   afterEach(() => {
@@ -33,7 +49,7 @@ describe('blackbookImport processSource', () => {
       const known = new Set<string>()
       const indexPath = join(dir, 'sha256-index.txt')
       const result = await processSource({
-        universeCode: 'U1',
+        universeCode: 'AA',
         baseUrl: 'http://localhost:3000',
         apiToken: 'token',
         spoolDir: dir,
@@ -44,7 +60,8 @@ describe('blackbookImport processSource', () => {
       })
 
       expect(result).toBe('uploaded')
-      expect(calls.length).toBe(2)
+      expect(calls.length).toBe(1)
+      expect(download.urls).toEqual(['https://cdn.example/img.png'])
       const indexText = await readFile(indexPath, 'utf8')
       expect(indexText.trim().length).toBeGreaterThan(0)
       expect(known.size).toBe(1)
@@ -78,7 +95,7 @@ describe('blackbookImport processSource', () => {
       const known = new Set<string>()
       const indexPath = join(dir, 'sha256-index.txt')
       const result = await processSource({
-        universeCode: 'U1',
+        universeCode: 'AA',
         baseUrl: 'https://blackbook:3000',
         apiToken: 'token',
         spoolDir: dir,
@@ -110,7 +127,7 @@ describe('blackbookImport processSource', () => {
       }) as any
 
       const result = await processSource({
-        universeCode: 'U1',
+        universeCode: 'AA',
         baseUrl: 'http://localhost:3000',
         apiToken: 'token',
         spoolDir: dir,
@@ -121,6 +138,39 @@ describe('blackbookImport processSource', () => {
       })
 
       expect(result).toBe('failed')
+      expect(await readdir(dir)).toEqual([])
+    } finally {
+      log.mockRestore()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('uploads nothing for a link that is refused, is missing or is no image', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'memo-spool-'))
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const upload = vi.fn()
+    globalThis.fetch = upload as any
+    try {
+      const cases: Array<[any, string]> = [
+        [new Error('Not a public address'), 'failed'],
+        [{ status: 404, contentType: 'image/png' }, 'skipped'],
+        [{ status: 200, contentType: 'text/html' }, 'skipped']
+      ]
+      for (const [answer, expected] of cases) {
+        download.answer = answer
+        const result = await processSource({
+          universeCode: 'AA',
+          baseUrl: 'http://localhost:3000',
+          apiToken: 'token',
+          spoolDir: dir,
+          indexPath: join(dir, 'sha256-index.txt'),
+          known: new Set<string>(),
+          src: { kind: 'url', url: 'http://blackbook:3000/api' },
+          caption: 'cap'
+        })
+        expect(result).toBe(expected)
+      }
+      expect(upload).not.toHaveBeenCalled()
       expect(await readdir(dir)).toEqual([])
     } finally {
       log.mockRestore()

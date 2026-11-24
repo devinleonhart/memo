@@ -77,7 +77,7 @@ describe('blackbook command export', () => {
       inGuild: () => false,
       options: {
         getSubcommand: () => 'export',
-        getString: () => 'U1'
+        getString: () => 'AA'
       },
       editReply,
       followUp: vi.fn().mockResolvedValue(undefined)

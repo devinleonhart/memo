@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendShaIndex, extractUrls, getSpoolDir, loadShaIndex } from '../src/services/blackbookImport'
+import { appendShaIndex, extractUrls, getSpoolDir, getUniverseChoices, loadShaIndex } from '../src/services/blackbookImport'
 import { getImageSources, getReactionCount } from '../src/services/blackbookImport'
 
 describe('blackbookImport', () => {
@@ -77,6 +77,38 @@ describe('blackbookImport', () => {
       expect(getImageSources(msg)).toEqual([
         { kind: 'attachment', url: 'https://cdn.example/a.webp', filename: 'a.webp', contentType: undefined }
       ])
+    })
+  })
+
+  describe('getUniverseChoices', () => {
+    const old = process.env.MEMO_BLACKBOOK_UNIVERSES
+    afterEach(() => {
+      if (old === undefined) delete process.env.MEMO_BLACKBOOK_UNIVERSES
+      else process.env.MEMO_BLACKBOOK_UNIVERSES = old
+    })
+
+    it('reads codes and names from the environment', () => {
+      process.env.MEMO_BLACKBOOK_UNIVERSES = ' AA = First World — AA ;BB=Second = World;;\nCC=Third'
+      expect(getUniverseChoices()).toEqual([
+        { name: 'First World — AA', value: 'AA' },
+        { name: 'Second = World', value: 'BB' },
+        { name: 'Third', value: 'CC' }
+      ])
+    })
+
+    it('is empty when nothing is set, and holds no list of its own', () => {
+      for (const value of [undefined, '', ' ; ', 'no separator', '=Name', 'AA=']) {
+        if (value === undefined) delete process.env.MEMO_BLACKBOOK_UNIVERSES
+        else process.env.MEMO_BLACKBOOK_UNIVERSES = value
+        expect(getUniverseChoices()).toEqual([])
+      }
+    })
+
+    it('keeps what Discord accepts: 25 choices, once each', () => {
+      process.env.MEMO_BLACKBOOK_UNIVERSES = Array.from({ length: 30 }, (_, i) => `C${i}=Name ${i}`).join(';') + ';C0=Again'
+      const choices = getUniverseChoices()
+      expect(choices.length).toBe(25)
+      expect(choices[0]).toEqual({ name: 'Name 0', value: 'C0' })
     })
   })
 

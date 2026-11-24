@@ -14,7 +14,7 @@ import { promises as fs } from 'fs'
 import { resolve } from 'path'
 import {
   BLACKBOOK_REACTION_EMOJI,
-  BLACKBOOK_UNIVERSE_CHOICES,
+  getUniverseChoices,
   getImageSources,
   getSpoolDir,
   loadShaIndex,
@@ -66,6 +66,12 @@ module.exports = {
       return
     }
 
+    const universes = getUniverseChoices()
+    if (universes.length === 0) {
+      await sendTempReply(msg, { content: 'No Blackbook universes are configured (`MEMO_BLACKBOOK_UNIVERSES`).' }, ERROR_TTL_MS)
+      return
+    }
+
     const key = `${user.id}:${msg.id}`
     if (inflight.has(key)) return
     inflight.add(key)
@@ -74,7 +80,7 @@ module.exports = {
     const select = new StringSelectMenuBuilder()
       .setCustomId(customId)
       .setPlaceholder('Select a Blackbook universe…')
-      .addOptions(BLACKBOOK_UNIVERSE_CHOICES.map(c => ({ label: c.name, value: c.value })))
+      .addOptions(universes.map(c => ({ label: c.name, value: c.value })))
 
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)
 

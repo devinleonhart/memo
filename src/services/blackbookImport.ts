@@ -3,19 +3,25 @@ import { createWriteStream, openAsBlob, promises as fs, constants as FS_CONSTANT
 import { tmpdir } from 'os'
 import { resolve } from 'path'
 import { pipeline } from 'stream/promises'
-import { Readable } from 'stream'
 import { type Attachment, type Message } from 'discord.js'
+import { fetchPublic } from './publicFetch'
 
 export const BLACKBOOK_REACTION_EMOJI = 'blackbookit'
 
-export const BLACKBOOK_UNIVERSE_CHOICES: Array<{ name: string, value: string }> = [
-  { name: 'Universe One — U1', value: 'U1' },
-  { name: 'Universe Two — U2', value: 'U2' },
-  { name: 'Universe Three — U3', value: 'U3' },
-  { name: 'Universe Four — U4', value: 'U4' },
-  { name: 'Universe Five — U5', value: 'U5' },
-  { name: 'Universe Six — U6', value: 'U6' }
-]
+const MAX_CHOICES = 25 // Discord's limit for a command option and for a select menu
+
+// The universes are not in the code: MEMO_BLACKBOOK_UNIVERSES holds "CODE=Name" pairs, separated by ";".
+export function getUniverseChoices (): Array<{ name: string, value: string }> {
+  const choices: Array<{ name: string, value: string }> = []
+  for (const pair of (process.env.MEMO_BLACKBOOK_UNIVERSES ?? '').split(/[;\n]/)) {
+    const at = pair.indexOf('=')
+    const value = pair.slice(0, Math.max(at, 0)).trim()
+    const name = pair.slice(at + 1).trim()
+    if (at < 1 || !value || !name || choices.some(c => c.value === value)) continue
+    choices.push({ name: name.slice(0, 100), value: value.slice(0, 100) })
+  }
+  return choices.slice(0, MAX_CHOICES)
+}
 
 const MAX_IMAGE_BYTES = 100 * 1024 * 1024
 
@@ -249,11 +255,13 @@ async function downloadToSpool (
   src: ImageSource,
   spoolDir: string
 ): Promise<null | { filePath: string, sha256: string }> {
-  const resp = await fetch(src.url)
-  if (!resp.ok) return null
-
-  const contentType = (resp.headers.get('content-type') ?? (src.kind === 'attachment' ? src.contentType : '') ?? '').toLowerCase()
-  if (!contentType.startsWith('image/')) return null
+  // The link comes from a message, so it may only lead to the public internet.
+  const resp = await fetchPublic(src.url)
+  const contentType = (resp.contentType || (src.kind === 'attachment' ? src.contentType : '') || '').toLowerCase()
+  if (!resp.ok || !contentType.startsWith('image/')) {
+    resp.body.destroy()
+    return null
+  }
 
   const ext = extensionFor(contentType, src)
   const tmpPath = resolve(spoolDir, `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`)
@@ -261,10 +269,7 @@ async function downloadToSpool (
   const hasher = createHash('sha256')
   let bytes = 0
 
-  const body = resp.body
-  if (!body) return null
-
-  const nodeStream = Readable.fromWeb(body as any)
+  const nodeStream = resp.body
   nodeStream.on('data', (chunk: Buffer) => {
     bytes += chunk.length
     if (bytes > MAX_IMAGE_BYTES) {

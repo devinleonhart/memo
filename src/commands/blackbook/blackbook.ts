@@ -8,7 +8,7 @@ import { promises as fs } from 'fs'
 import { resolve } from 'path'
 import {
   BLACKBOOK_REACTION_EMOJI,
-  BLACKBOOK_UNIVERSE_CHOICES,
+  getUniverseChoices,
   extractUrls,
   getImageSources,
   getReactionCount,
@@ -42,7 +42,7 @@ module.exports = {
             .setName('universe')
             .setDescription('Choose the Blackbook universe to upload into.')
             .setRequired(true)
-            .addChoices(...BLACKBOOK_UNIVERSE_CHOICES)
+            .addChoices(...getUniverseChoices())
         )
     ),
 
