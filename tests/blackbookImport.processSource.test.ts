@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { processSource } from '../src/services/blackbookImport'
@@ -94,6 +94,36 @@ describe('blackbookImport processSource', () => {
       expect(uploadUrls[0]).toContain('https://blackbook:3000')
       expect(uploadUrls[1]).toContain('http://blackbook:3000')
     } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('leaves no file behind when the upload fails', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'memo-spool-'))
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      globalThis.fetch = (async (_url: any, init?: any) => {
+        if (!init || init.method === undefined) {
+          return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'content-type': 'image/png' } })
+        }
+        return new Response('no', { status: 500 })
+      }) as any
+
+      const result = await processSource({
+        universeCode: 'U1',
+        baseUrl: 'http://localhost:3000',
+        apiToken: 'token',
+        spoolDir: dir,
+        indexPath: join(dir, 'sha256-index.txt'),
+        known: new Set<string>(),
+        src: { kind: 'url', url: 'https://cdn.example/img.png' },
+        caption: 'cap'
+      })
+
+      expect(result).toBe('failed')
+      expect(await readdir(dir)).toEqual([])
+    } finally {
+      log.mockRestore()
       await rm(dir, { recursive: true, force: true })
     }
   })

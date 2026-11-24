@@ -10,6 +10,7 @@ Create `.env` and fill in values:
 - `MEMO_CLIENT_ID`: Application ID
 - `MEMO_GUILD_ID`: Your server ID
 - `MEMO_COMMANDS_SCOPE`: `guild`
+- `MEMO_SPOOL_DIR` (optional): where downloads and the index of uploaded images are kept; in the image `/data/blackbook-spool`, which should be on a volume
 - `EMOTE_BASE_URL` (optional): base URL of the emote generator, defaults to `https://emote.devleo.me`
 
 ## Commands

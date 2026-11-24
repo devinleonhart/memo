@@ -7,6 +7,8 @@ describe('blackbook command export', () => {
     process.env = { ...savedEnv }
     process.env.BLACKBOOK_BASE_URL = 'http://localhost:3000'
     process.env.BLACKBOOK_API_TOKEN = 'token'
+    // No directory can be made here, so the export has to fall back.
+    process.env.MEMO_SPOOL_DIR = '/dev/null/spool'
     vi.resetModules()
   })
 
@@ -89,5 +91,6 @@ describe('blackbook command export', () => {
     const joined = editReply.mock.calls.map(c => String(c[0] ?? '')).join('\n')
     expect(joined).toContain('Starting export')
     expect(joined).toContain('Export complete')
+    expect(joined).not.toContain('/dev/null/spool')
   })
 })

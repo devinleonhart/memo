@@ -121,13 +121,13 @@ export async function processSource (args: {
   src: ImageSource
   caption: string
 }): Promise<'uploaded' | 'skipped' | 'failed'> {
+  let downloaded: Awaited<ReturnType<typeof downloadToSpool>> = null
   try {
-    const downloaded = await downloadToSpool(args.src, args.spoolDir)
+    downloaded = await downloadToSpool(args.src, args.spoolDir)
     if (!downloaded) return 'skipped'
 
     const { filePath, sha256 } = downloaded
     if (args.known.has(sha256)) {
-      await fs.unlink(filePath).catch(() => {})
       return 'skipped'
     }
 
@@ -142,13 +142,14 @@ export async function processSource (args: {
     await appendShaIndex(args.indexPath, sha256)
     args.known.add(sha256)
 
-    await fs.unlink(filePath).catch(() => {})
-
     console.log(`Uploaded to Blackbook image_id=${imageId} sha256=${sha256}`)
     return 'uploaded'
   } catch (e) {
     console.error(e)
     return 'failed'
+  } finally {
+    // Only the index stays in the spool; a failed image is downloaded again.
+    if (downloaded) await fs.unlink(downloaded.filePath).catch(() => {})
   }
 }
 
@@ -273,7 +274,12 @@ async function downloadToSpool (
     hasher.update(chunk)
   })
 
-  await pipeline(nodeStream, createWriteStream(tmpPath))
+  try {
+    await pipeline(nodeStream, createWriteStream(tmpPath))
+  } catch (e) {
+    await fs.unlink(tmpPath).catch(() => {})
+    throw e
+  }
   const sha256 = hasher.digest('hex')
 
   const finalPath = resolve(spoolDir, `${sha256}${ext}`)

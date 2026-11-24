@@ -14,7 +14,8 @@ import {
   getReactionCount,
   getSpoolDir,
   loadShaIndex,
-  processSource
+  processSource,
+  resolveWritableSpoolDir
 } from '../../services/blackbookImport'
 
 const commandName = 'blackbook'
@@ -104,7 +105,7 @@ async function exportChannel (
     return
   }
 
-  const spoolDir = getSpoolDir()
+  const spoolDir = await resolveWritableSpoolDir(getSpoolDir())
   await fs.mkdir(spoolDir, { recursive: true })
   const indexPath = resolve(spoolDir, 'sha256-index.txt')
   const known = await loadShaIndex(indexPath)

@@ -20,7 +20,10 @@ RUN pnpm install --prod --frozen-lockfile
 
 COPY --from=build /app/dist ./dist
 
-RUN addgroup -S memo && adduser -S memo -G memo
+# Fixed ids, since the volume at /data belongs to them.
+RUN addgroup -S -g 101 memo && adduser -S -u 100 memo -G memo && \
+    mkdir -p /data/blackbook-spool && chown -R memo:memo /data
+ENV MEMO_SPOOL_DIR=/data/blackbook-spool
 USER memo
 
 CMD ["node", "dist/index.js"]
