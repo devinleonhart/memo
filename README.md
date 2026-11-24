@@ -1,36 +1,56 @@
-# Memo Discord Bot
+# Memo
 
-A personal assistant.
+A Discord bot for my servers: it posts emotes and files images into Blackbook.
 
-## Env vars
+## Features
 
-Create `.env` and fill in values:
+- `/emote`: composes an emote of a character and posts it. The character and its parts are completed from the Emote Generator's catalog.
+- `/blackbook count`: counts the `:blackbookit:` reactions in a channel.
+- `/blackbook export`: uploads the images marked with `:blackbookit:` to a Blackbook universe.
+- Reacting to a message with `:blackbookit:` asks for a universe and uploads that message's images.
 
-- `MEMO_SECRET_KEY`: your bot token
-- `MEMO_CLIENT_ID`: Application ID
-- `MEMO_GUILD_ID`: Your server ID
-- `MEMO_COMMANDS_SCOPE`: `guild`
-- `MEMO_BLACKBOOK_UNIVERSES`: the Blackbook universes to offer, as `CODE=Name` pairs separated by `;`. They are kept out of the code on purpose
-- `MEMO_SPOOL_DIR` (optional): where downloads and the index of uploaded images are kept; in the image `/data/blackbook-spool`, which should be on a volume
-- `EMOTE_BASE_URL` (optional): base URL of the emote generator, defaults to `https://emote.devleo.me`
+Images are fetched only from public addresses, and one that was uploaded before is not uploaded again.
 
-## Commands
+## Development
 
-- `/emote` — Generate a character emote and post it as an embed. The
-  `character`, `eyebrows`, `eyes`, `mouth`, and optional `head` options are
-  autocompleted from the emote generator's live catalog.
-
-## Docker
-
-Use the `docker compose` command.
+Needs Node and pnpm at the versions in `.tool-versions`, and a `.env` with the variables below.
 
 ```bash
-cd /Users/devin/source/memo
-docker compose up -d
-docker compose logs -f
-docker compose down
+pnpm install
+pnpm dev             # runs with nodemon, restarting on changes
+pnpm quality         # type check, lint and tests: everything CI checks
+docker compose up    # the same in a container, from Dockerfile.dev
 ```
 
-## Notes
+Slash commands are registered on startup.
 
-- Slash commands are registered on startup.
+## Environment
+
+| Variable | Purpose |
+|---|---|
+| `MEMO_SECRET_KEY` | The bot's token |
+| `MEMO_CLIENT_ID` | The application's ID |
+| `MEMO_GUILD_ID` | The server's ID; required when the scope is `guild` |
+| `MEMO_COMMANDS_SCOPE` | `guild` (default) or `global` |
+| `BLACKBOOK_BASE_URL`, `BLACKBOOK_API_TOKEN` | Blackbook's address and its import token |
+| `MEMO_BLACKBOOK_UNIVERSES` | The universes to offer, as `CODE=Name` pairs separated by `;`. They are kept out of the code on purpose |
+| `MEMO_SPOOL_DIR` | Where downloads and the index of uploaded images are kept; in the image `/data/blackbook-spool`, which should be on a volume |
+| `EMOTE_BASE_URL` | The Emote Generator's address (default `https://emote.devleo.me`) |
+
+## Deployment
+
+A merge to `master` runs CI, which publishes `devleo/memo:latest` to Docker Hub when the checks pass. On the server:
+
+```bash
+docker compose pull memo-bot
+docker compose up -d memo-bot
+```
+
+## Architecture
+
+```
+src/commands/    # One folder for each slash command
+src/events/      # Discord events: ready, interactions, reactions
+src/services/    # The Emote Generator, the Blackbook import, and fetching of public addresses
+src/settings.ts  # The environment, read once
+```
