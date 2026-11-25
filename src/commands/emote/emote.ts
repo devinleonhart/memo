@@ -1,8 +1,5 @@
 import { SlashCommandBuilder, EmbedBuilder } from '@discordjs/builders'
-import {
-  type AutocompleteInteraction,
-  type ChatInputCommandInteraction
-} from 'discord.js'
+import { type AutocompleteInteraction, type ChatInputCommandInteraction } from 'discord.js'
 import {
   buildEmoteUrl,
   fetchCharacters,
@@ -19,35 +16,31 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName(commandName)
     .setDescription('Generate a character emote and post it as an embed.')
-    .addStringOption(opt =>
+    .addStringOption((opt) =>
       opt
         .setName('character')
         .setDescription('Which character to draw.')
         .setRequired(true)
         .setAutocomplete(true)
     )
-    .addStringOption(opt =>
+    .addStringOption((opt) =>
       opt
         .setName('eyebrows')
         .setDescription('Eyebrow expression.')
         .setRequired(true)
         .setAutocomplete(true)
     )
-    .addStringOption(opt =>
-      opt
-        .setName('eyes')
-        .setDescription('Eye expression.')
-        .setRequired(true)
-        .setAutocomplete(true)
+    .addStringOption((opt) =>
+      opt.setName('eyes').setDescription('Eye expression.').setRequired(true).setAutocomplete(true)
     )
-    .addStringOption(opt =>
+    .addStringOption((opt) =>
       opt
         .setName('mouth')
         .setDescription('Mouth expression.')
         .setRequired(true)
         .setAutocomplete(true)
     )
-    .addStringOption(opt =>
+    .addStringOption((opt) =>
       opt
         .setName('head')
         .setDescription('Head style (defaults to "normal").')
@@ -55,7 +48,7 @@ module.exports = {
         .setAutocomplete(true)
     ),
 
-  async execute (interaction: ChatInputCommandInteraction) {
+  async execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply()
 
     const config: EmoteConfig = {
@@ -70,7 +63,7 @@ module.exports = {
     if (error) {
       await interaction.editReply(
         `I couldn’t build that emote for **${config.character}**: ${error}\n` +
-        'Double-check the part names — the autocomplete suggestions are the safe choices.'
+          'Double-check the part names — the autocomplete suggestions are the safe choices.'
       )
       return
     }
@@ -81,7 +74,7 @@ module.exports = {
       .setTitle(title)
       .setDescription(
         `head: ${config.head} • eyebrows: ${config.eyebrows} • ` +
-        `eyes: ${config.eyes} • mouth: ${config.mouth}`
+          `eyes: ${config.eyes} • mouth: ${config.mouth}`
       )
       .setImage(url)
       .setURL(url)
@@ -89,7 +82,7 @@ module.exports = {
     await interaction.editReply({ embeds: [embed] })
   },
 
-  async autocomplete (interaction: AutocompleteInteraction) {
+  async autocomplete(interaction: AutocompleteInteraction) {
     const focused = interaction.options.getFocused(true)
     const query = focused.value.toLowerCase()
 
@@ -107,9 +100,9 @@ module.exports = {
       }
 
       const suggestions = options
-        .filter(option => option.toLowerCase().includes(query))
+        .filter((option) => option.toLowerCase().includes(query))
         .slice(0, MAX_CHOICES)
-        .map(option => ({ name: option, value: option }))
+        .map((option) => ({ name: option, value: option }))
 
       await interaction.respond(suggestions)
     } catch (error) {

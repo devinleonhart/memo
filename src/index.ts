@@ -3,7 +3,7 @@ import { resolve } from 'path'
 import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js'
 import settings from './settings'
 
-(async () => {
+;(async () => {
   if (!settings.secretKey) {
     throw new Error('Missing MEMO_SECRET_KEY. Set it in your .env as the bot token.')
   }
@@ -23,12 +23,7 @@ import settings from './settings'
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMessageReactions
     ],
-    partials: [
-      Partials.Message,
-      Partials.Channel,
-      Partials.Reaction,
-      Partials.User
-    ]
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User]
   })
 
   client.commands = new Collection()
@@ -44,4 +39,6 @@ import settings from './settings'
   client.handleEvents()
   await client.handleCommands()
   await client.login(settings.secretKey)
-})().catch(error => { console.error('Unhandled promise rejection:', error) })
+})().catch((error) => {
+  console.error('Unhandled promise rejection:', error)
+})

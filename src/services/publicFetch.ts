@@ -13,13 +13,13 @@ const TIMEOUT_MS = 15_000
 const REDIRECTS = [301, 302, 303, 307, 308]
 
 export class RefusedUrlError extends Error {
-  constructor (message: string) {
+  constructor(message: string) {
     super(message)
     this.name = 'RefusedUrlError'
   }
 }
 
-export type PublicResponse = { status: number, ok: boolean, contentType: string, body: Readable }
+export type PublicResponse = { status: number; ok: boolean; contentType: string; body: Readable }
 
 export type PublicFetchOptions = {
   isPublic?: (address: string) => boolean
@@ -27,14 +27,14 @@ export type PublicFetchOptions = {
   timeoutMs?: number
 }
 
-export function isPublicAddress (address: string): boolean {
+export function isPublicAddress(address: string): boolean {
   const version = isIP(address)
   if (version === 4) return isPublicV4(address.split('.').map(Number))
   if (version === 6) return isPublicV6(address)
   return false
 }
 
-function isPublicV4 ([a, b, c]: number[]): boolean {
+function isPublicV4([a, b, c]: number[]): boolean {
   if (a === 0 || a === 10 || a === 127 || a >= 224) return false
   if (a === 100 && b >= 64 && b <= 127) return false // shared address space, Tailscale among it
   if (a === 169 && b === 254) return false
@@ -47,10 +47,10 @@ function isPublicV4 ([a, b, c]: number[]): boolean {
   return true
 }
 
-function isPublicV6 (address: string): boolean {
+function isPublicV6(address: string): boolean {
   const groups = groupsOf(address)
   if (!groups) return false
-  if (groups.slice(0, 5).every(group => group === 0)) {
+  if (groups.slice(0, 5).every((group) => group === 0)) {
     // Only an IPv4 address written as IPv6 can be public here; the rest is loopback and the like.
     if (groups[5] !== 0xffff) return false
     return isPublicV4([groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff])
@@ -62,23 +62,29 @@ function isPublicV6 (address: string): boolean {
   return true
 }
 
-function groupsOf (address: string): number[] | null {
+function groupsOf(address: string): number[] | null {
   if (address.includes('%')) return null
   let text = address.toLowerCase()
   const dotted = text.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
   if (dotted) {
     const [a, b, c, d] = dotted.slice(1).map(Number)
-    text = text.slice(0, dotted.index) + ((a << 8) | b).toString(16) + ':' + ((c << 8) | d).toString(16)
+    text =
+      text.slice(0, dotted.index) + ((a << 8) | b).toString(16) + ':' + ((c << 8) | d).toString(16)
   }
   const [head, tail] = text.split('::')
   const left = head ? head.split(':') : []
   const right = tail ? tail.split(':') : []
   const middle = tail === undefined ? [] : new Array(8 - left.length - right.length).fill('0')
-  const groups = [...left, ...middle, ...right].map(group => parseInt(group, 16))
-  return groups.length === 8 && groups.every(group => group >= 0 && group <= 0xffff) ? groups : null
+  const groups = [...left, ...middle, ...right].map((group) => parseInt(group, 16))
+  return groups.length === 8 && groups.every((group) => group >= 0 && group <= 0xffff)
+    ? groups
+    : null
 }
 
-export async function fetchPublic (link: string, options: PublicFetchOptions = {}): Promise<PublicResponse> {
+export async function fetchPublic(
+  link: string,
+  options: PublicFetchOptions = {}
+): Promise<PublicResponse> {
   const isPublic = options.isPublic ?? isPublicAddress
   let url = parse(link)
 
@@ -97,7 +103,7 @@ export async function fetchPublic (link: string, options: PublicFetchOptions = {
   throw new RefusedUrlError('Too many redirects')
 }
 
-function parse (link: string, base?: URL): URL {
+function parse(link: string, base?: URL): URL {
   try {
     return new URL(link, base)
   } catch {
@@ -105,15 +111,16 @@ function parse (link: string, base?: URL): URL {
   }
 }
 
-function check (url: URL, isPublic: (address: string) => boolean): void {
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new RefusedUrlError('Only http and https links')
+function check(url: URL, isPublic: (address: string) => boolean): void {
+  if (url.protocol !== 'http:' && url.protocol !== 'https:')
+    throw new RefusedUrlError('Only http and https links')
   if (url.username || url.password) throw new RefusedUrlError('Links with a password are refused')
   // Node asks no resolver for an address, so it is checked here.
   const host = url.hostname.replace(/^\[|\]$/g, '')
   if (isIP(host) && !isPublic(host)) throw new RefusedUrlError('Not a public address')
 }
 
-async function request (
+async function request(
   url: URL,
   isPublic: (address: string) => boolean,
   options: PublicFetchOptions
@@ -125,8 +132,8 @@ async function request (
   const lookup = (hostname: string, lookupOptions: any, callback: any): void => {
     resolve(hostname, { ...lookupOptions, all: true }, (error: any, found: any) => {
       if (error) return callback(error)
-      const addresses: Array<{ address: string, family: number }> = found
-      if (addresses.length === 0 || !addresses.every(one => isPublic(one.address))) {
+      const addresses: Array<{ address: string; family: number }> = found
+      if (addresses.length === 0 || !addresses.every((one) => isPublic(one.address))) {
         return callback(new RefusedUrlError('Not a public address'))
       }
       if (lookupOptions?.all) callback(null, addresses)
@@ -136,7 +143,12 @@ async function request (
 
   return await new Promise((resolve, reject) => {
     const client = url.protocol === 'https:' ? https : http
-    const outgoing = client.request(url, { lookup: lookup as any, agent: false, timeout: timeoutMs, headers: { accept: 'image/*' } })
+    const outgoing = client.request(url, {
+      lookup: lookup as any,
+      agent: false,
+      timeout: timeoutMs,
+      headers: { accept: 'image/*' }
+    })
     outgoing.on('response', resolve)
     outgoing.on('timeout', () => outgoing.destroy(new Error('The link timed out')))
     outgoing.on('error', reject)

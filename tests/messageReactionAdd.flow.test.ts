@@ -44,7 +44,9 @@ describe('messageReactionAdd flow', () => {
 
     const handlers: Record<string, any> = {}
     const collector = {
-      on: (evt: string, cb: any) => { handlers[evt] = cb }
+      on: (evt: string, cb: any) => {
+        handlers[evt] = cb
+      }
     } as any
     prompt.createMessageComponentCollector.mockReturnValue(collector)
 
@@ -57,10 +59,14 @@ describe('messageReactionAdd flow', () => {
         id: 'm1',
         partial: false,
         url: 'https://discord.example/messages/m1',
-        attachments: new Map([['1', { url: 'https://cdn.example/a.png', contentType: 'image/png', name: 'a.png' }]]),
+        attachments: new Map([
+          ['1', { url: 'https://cdn.example/a.png', contentType: 'image/png', name: 'a.png' }]
+        ]),
         content: '',
         reply: vi.fn().mockResolvedValue(prompt),
-        fetch: vi.fn().mockImplementation(async function (this: unknown) { return this })
+        fetch: vi.fn().mockImplementation(async function (this: unknown) {
+          return this
+        })
       }
     } as any
 

@@ -26,7 +26,9 @@ describe('messageReactionAdd event', () => {
         attachments: new Map(),
         content: '',
         reply,
-        fetch: vi.fn().mockImplementation(async function (this: unknown) { return this })
+        fetch: vi.fn().mockImplementation(async function (this: unknown) {
+          return this
+        })
       }
     } as any
 

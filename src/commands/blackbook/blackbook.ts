@@ -28,16 +28,14 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName(commandName)
     .setDescription('Review channel history for :blackbookit: reactions.')
-    .addSubcommand(sub =>
-      sub
-        .setName('count')
-        .setDescription('Count :blackbookit: reactions in this channel.')
+    .addSubcommand((sub) =>
+      sub.setName('count').setDescription('Count :blackbookit: reactions in this channel.')
     )
-    .addSubcommand(sub =>
+    .addSubcommand((sub) =>
       sub
         .setName('export')
         .setDescription('Export images marked with :blackbookit: to Blackbook.')
-        .addStringOption(opt =>
+        .addStringOption((opt) =>
           opt
             .setName('universe')
             .setDescription('Choose the Blackbook universe to upload into.')
@@ -46,7 +44,7 @@ module.exports = {
         )
     ),
 
-  async execute (interaction: ChatInputCommandInteraction) {
+  async execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ ephemeral: true })
 
     const channel = interaction.channel
@@ -57,9 +55,10 @@ module.exports = {
 
     if (interaction.inGuild()) {
       const me = interaction.guild?.members.me
-      const perms = 'permissionsFor' in channel
-        ? (channel as any).permissionsFor(me ?? interaction.client.user)
-        : undefined
+      const perms =
+        'permissionsFor' in channel
+          ? (channel as any).permissionsFor(me ?? interaction.client.user)
+          : undefined
       const missing: string[] = []
 
       if (!perms?.has(PermissionFlagsBits.ViewChannel)) missing.push('View Channel')
@@ -68,7 +67,7 @@ module.exports = {
       if (missing.length > 0) {
         await interaction.editReply(
           `I can’t read this channel’s message history. I am missing these permissions: ${missing.join(', ')}.\n` +
-          'Please grant these permissions to the bot role in this channel, or re-invite the bot with them enabled.'
+            'Please grant these permissions to the bot role in this channel, or re-invite the bot with them enabled.'
         )
         return
       }
@@ -89,7 +88,7 @@ module.exports = {
   }
 }
 
-async function exportChannel (
+async function exportChannel(
   interaction: ChatInputCommandInteraction,
   channel: TextBasedChannel,
   universeCode: string
@@ -122,8 +121,7 @@ async function exportChannel (
   let reachedCutoff = false
 
   await interaction.editReply(
-    `Starting export to **${universeCode}**.\n` +
-    `Using spool directory: \`${spoolDir}\``
+    `Starting export to **${universeCode}**.\n` + `Using spool directory: \`${spoolDir}\``
   )
 
   while (scanned < MAX_MESSAGES_TO_SCAN && !reachedCutoff) {
@@ -165,12 +163,12 @@ async function exportChannel (
         if ((uploaded + skipped + failed) % 10 === 0) {
           await interaction.editReply(
             `Exporting to **${universeCode}**.\n` +
-            `Scanned: ${scanned}\n` +
-            `Marked messages: ${markedMessages}\n` +
-            `Candidates: ${candidates}\n` +
-            `Uploaded: ${uploaded}\n` +
-            `Skipped: ${skipped}\n` +
-            `Failed: ${failed}`
+              `Scanned: ${scanned}\n` +
+              `Marked messages: ${markedMessages}\n` +
+              `Candidates: ${candidates}\n` +
+              `Uploaded: ${uploaded}\n` +
+              `Skipped: ${skipped}\n` +
+              `Failed: ${failed}`
           )
         }
       }
@@ -182,16 +180,16 @@ async function exportChannel (
 
   await interaction.editReply(
     `Export complete for **${universeCode}**.\n` +
-    `Scanned: ${scanned}\n` +
-    `Marked messages: ${markedMessages}\n` +
-    `Candidates: ${candidates}\n` +
-    `Uploaded: ${uploaded}\n` +
-    `Skipped due to deduplication: ${skipped}\n` +
-    `Failed: ${failed}`
+      `Scanned: ${scanned}\n` +
+      `Marked messages: ${markedMessages}\n` +
+      `Candidates: ${candidates}\n` +
+      `Uploaded: ${uploaded}\n` +
+      `Skipped due to deduplication: ${skipped}\n` +
+      `Failed: ${failed}`
   )
 }
 
-async function scanChannel (channel: TextBasedChannel): Promise<{
+async function scanChannel(channel: TextBasedChannel): Promise<{
   scanned: number
   totalReactions: number
   urls: string[]

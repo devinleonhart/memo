@@ -2,7 +2,13 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { appendShaIndex, extractUrls, getSpoolDir, getUniverseChoices, loadShaIndex } from '../src/services/blackbookImport'
+import {
+  appendShaIndex,
+  extractUrls,
+  getSpoolDir,
+  getUniverseChoices,
+  loadShaIndex
+} from '../src/services/blackbookImport'
 import { getImageSources, getReactionCount } from '../src/services/blackbookImport'
 
 describe('blackbookImport', () => {
@@ -60,7 +66,12 @@ describe('blackbookImport', () => {
 
       const sources = getImageSources(msg)
       expect(sources).toEqual([
-        { kind: 'attachment', url: 'https://cdn.example/a.png', filename: 'a.png', contentType: 'image/png' },
+        {
+          kind: 'attachment',
+          url: 'https://cdn.example/a.png',
+          filename: 'a.png',
+          contentType: 'image/png'
+        },
         { kind: 'url', url: 'https://example.com/x.jpg' },
         { kind: 'url', url: 'https://example.com/y' }
       ])
@@ -75,7 +86,12 @@ describe('blackbookImport', () => {
       } as any
 
       expect(getImageSources(msg)).toEqual([
-        { kind: 'attachment', url: 'https://cdn.example/a.webp', filename: 'a.webp', contentType: undefined }
+        {
+          kind: 'attachment',
+          url: 'https://cdn.example/a.webp',
+          filename: 'a.webp',
+          contentType: undefined
+        }
       ])
     })
   })
@@ -105,7 +121,8 @@ describe('blackbookImport', () => {
     })
 
     it('keeps what Discord accepts: 25 choices, once each', () => {
-      process.env.MEMO_BLACKBOOK_UNIVERSES = Array.from({ length: 30 }, (_, i) => `C${i}=Name ${i}`).join(';') + ';C0=Again'
+      process.env.MEMO_BLACKBOOK_UNIVERSES =
+        Array.from({ length: 30 }, (_, i) => `C${i}=Name ${i}`).join(';') + ';C0=Again'
       const choices = getUniverseChoices()
       expect(choices.length).toBe(25)
       expect(choices[0]).toEqual({ name: 'Name 0', value: 'C0' })
@@ -114,7 +131,9 @@ describe('blackbookImport', () => {
 
   describe('getSpoolDir', () => {
     const old = process.env.MEMO_SPOOL_DIR
-    beforeEach(() => { delete process.env.MEMO_SPOOL_DIR })
+    beforeEach(() => {
+      delete process.env.MEMO_SPOOL_DIR
+    })
     afterEach(() => {
       if (old === undefined) delete process.env.MEMO_SPOOL_DIR
       else process.env.MEMO_SPOOL_DIR = old

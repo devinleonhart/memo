@@ -61,7 +61,9 @@ describe('blackbook command export', () => {
           if (calls === 1) {
             return {
               size: 1,
-              values: function * () { yield msg },
+              values: function* () {
+                yield msg
+              },
               last: () => msg
             }
           }
@@ -88,7 +90,7 @@ describe('blackbook command export', () => {
     await cmd.execute(interaction)
 
     expect(processSource).toHaveBeenCalledTimes(10)
-    const joined = editReply.mock.calls.map(c => String(c[0] ?? '')).join('\n')
+    const joined = editReply.mock.calls.map((c) => String(c[0] ?? '')).join('\n')
     expect(joined).toContain('Starting export')
     expect(joined).toContain('Export complete')
     expect(joined).not.toContain('/dev/null/spool')
