@@ -5,6 +5,7 @@ import {
   type TextBasedChannel
 } from 'discord.js'
 import { promises as fs } from 'fs'
+import { type BotCommand } from '../../core/command'
 import { resolve } from 'path'
 import {
   BLACKBOOK_REACTION_EMOJI,
@@ -24,7 +25,7 @@ const emojiName = BLACKBOOK_REACTION_EMOJI
 const MAX_MESSAGES_TO_SCAN = 100_000
 const TWO_YEARS_MS = 1000 * 60 * 60 * 24 * 365 * 2
 
-module.exports = {
+export default {
   data: new SlashCommandBuilder()
     .setName(commandName)
     .setDescription('Review channel history for :blackbookit: reactions.')
@@ -57,7 +58,7 @@ module.exports = {
       const me = interaction.guild?.members.me
       const perms =
         'permissionsFor' in channel
-          ? (channel as any).permissionsFor(me ?? interaction.client.user)
+          ? channel.permissionsFor(me ?? interaction.client.user)
           : undefined
       const missing: string[] = []
 
@@ -86,7 +87,7 @@ module.exports = {
     const universeCode = interaction.options.getString('universe', true)
     await exportChannel(interaction, channel, universeCode)
   }
-}
+} satisfies BotCommand
 
 async function exportChannel(
   interaction: ChatInputCommandInteraction,

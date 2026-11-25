@@ -21,23 +21,21 @@ export default defineConfig(
       '@typescript-eslint/explicit-function-return-type': 'off',
       // Catch the async-bug class that bites Discord bots.
       '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': 'error',
-      // Commands and events are loaded from their folders with require() and
-      // held as `any`, so the any-propagation checks cannot pass yet.
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-require-imports': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off'
+      '@typescript-eslint/no-misused-promises': 'error'
     }
   },
 
   {
-    // Tests stub async functions on purpose.
+    // Tests drive commands with loosely typed `any` mocks and async stubs on
+    // purpose, so the any-propagation and await checks are noise there.
     files: ['tests/**/*.ts'],
     rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/require-await': 'off'
     }
   },

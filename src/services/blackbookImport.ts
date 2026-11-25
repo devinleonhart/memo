@@ -93,8 +93,8 @@ export async function resolveWritableSpoolDir(preferredDir?: string): Promise<st
       await fs.mkdir(dir, { recursive: true })
       await fs.access(dir, FS_CONSTANTS.W_OK)
       return dir
-    } catch (e: any) {
-      const code = String(e?.code ?? '')
+    } catch (e) {
+      const code = errorCode(e)
       if (dir === preferred) {
         console.error(`Spool dir not writable: ${preferred} code=${code}`)
       }
@@ -184,7 +184,7 @@ async function uploadToBlackbook(args: {
 
   try {
     return await doUpload(primaryUrl, args.apiToken, form, args.baseUrl)
-  } catch (error: any) {
+  } catch (error) {
     const canRetryHttp =
       looksLikeSslProtocolError(error) && isLikelyInternalServiceUrl(args.baseUrl)
 
@@ -228,13 +228,19 @@ async function doUpload(
     )
   }
 
-  const parsed = JSON.parse(bodyText)
-  return parsed.image_id as number
+  const parsed = JSON.parse(bodyText) as { image_id: number }
+  return parsed.image_id
 }
 
-function looksLikeSslProtocolError(error: any): boolean {
-  const msg = String(error?.message ?? '')
-  const code = String(error?.cause?.code ?? error?.code ?? '')
+// The code of a Node error; '' when it has none.
+function errorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === 'string' ? code : ''
+}
+
+function looksLikeSslProtocolError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : ''
+  const code = (error instanceof Error ? errorCode(error.cause) : '') || errorCode(error)
   return (
     msg.includes('ERR_SSL_PACKET_LENGTH_TOO_LONG') ||
     msg.includes('wrong version number') ||
