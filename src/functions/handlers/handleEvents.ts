@@ -3,7 +3,7 @@ import { resolve } from 'path'
 import { type Client } from 'discord.js'
 
 module.exports = (client: Client) => {
-  client.handleEvents = async () => {
+  client.handleEvents = () => {
     const eventFolders = readdirSync(resolve(__dirname, '../../events'))
     for (const folder of eventFolders) {
       const eventFiles = readdirSync(resolve(__dirname, `../../events/${folder}`))

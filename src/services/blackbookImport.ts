@@ -221,7 +221,7 @@ async function doUpload (
     throw new Error(`Blackbook upload failed: base=${baseUrl} url=${url} status=${resp.status}${locPart} body=${bodyText}`)
   }
 
-  const parsed = JSON.parse(bodyText) as any
+  const parsed = JSON.parse(bodyText)
   return parsed.image_id as number
 }
 

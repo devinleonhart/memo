@@ -180,7 +180,7 @@ module.exports = {
   }
 }
 
-async function safeReply (msg: Message, payload: any): Promise<any | null> {
+async function safeReply (msg: Message, payload: any): Promise<any> {
   try {
     return await msg.reply(payload)
   } catch {

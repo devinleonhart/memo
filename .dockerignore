@@ -1,8 +1,23 @@
-dist
-node_modules
-data
+# VCS / CI
 .git
-.DS_Store
-npm-debug.log
-pnpm-debug.log
-*.log
+.gitignore
+.github
+
+# Installed deps & build artifacts (reinstalled / rebuilt in the image)
+node_modules
+dist
+coverage
+
+# Runtime data & secrets (never bake these into the image)
+data
+.env
+.env.*
+!.env.example
+
+# Tests, docs, and local tooling not needed to build the image
+tests
+*.md
+.claude
+.tool-versions
+.vscode
+.editorconfig
