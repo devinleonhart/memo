@@ -14,7 +14,7 @@ interface Settings {
   dataPath?: string
 }
 
-function getCommandsScope (): CommandsScope {
+function getCommandsScope(): CommandsScope {
   const v = (process.env.MEMO_COMMANDS_SCOPE ?? 'guild').toLowerCase()
   return v === 'global' ? 'global' : 'guild'
 }

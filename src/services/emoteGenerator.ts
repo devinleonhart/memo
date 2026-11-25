@@ -24,13 +24,13 @@ export interface EmoteConfig {
 const DEFAULT_BASE_URL = 'https://emote.devleo.me'
 const REQUEST_TIMEOUT_MS = 2500
 
-export function getEmoteBaseUrl (): string {
+export function getEmoteBaseUrl(): string {
   const raw = process.env.EMOTE_BASE_URL?.trim()
   const base = raw && raw.length > 0 ? raw : DEFAULT_BASE_URL
   return base.replace(/\/+$/, '')
 }
 
-export function buildEmoteUrl (config: EmoteConfig, baseUrl = getEmoteBaseUrl()): string {
+export function buildEmoteUrl(config: EmoteConfig, baseUrl = getEmoteBaseUrl()): string {
   const url = new URL(`${baseUrl.replace(/\/+$/, '')}/emote`)
   url.searchParams.set('character', config.character)
   url.searchParams.set('head', config.head)
@@ -42,16 +42,16 @@ export function buildEmoteUrl (config: EmoteConfig, baseUrl = getEmoteBaseUrl())
 
 // Split `clive_eyes_normal.png` into its pieces. The name may itself contain
 // underscores, so everything after the part key is treated as the name.
-export function parsePartFilename (
+export function parsePartFilename(
   filename: string
-): { character: string, key: string, name: string } | null {
+): { character: string; key: string; name: string } | null {
   const base = filename.replace(/\.png$/i, '')
   const [character, key, ...rest] = base.split('_')
   if (!character || !key || rest.length === 0) return null
   return { character, key, name: rest.join('_') }
 }
 
-async function fetchJson (path: string): Promise<unknown> {
+async function fetchJson(path: string): Promise<unknown> {
   const url = `${getEmoteBaseUrl()}${path}`
   const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
   if (!response.ok) {
@@ -60,16 +60,14 @@ async function fetchJson (path: string): Promise<unknown> {
   return await response.json()
 }
 
-export async function fetchCharacters (): Promise<string[]> {
+export async function fetchCharacters(): Promise<string[]> {
   const data = await fetchJson('/character')
   return Array.isArray(data) ? data.filter((c): c is string => typeof c === 'string') : []
 }
 
 // Returns the available part names for a character, grouped by part key,
 // e.g. { head: ['normal'], eyes: ['normal', 'glee', ...], ... }.
-export async function fetchPartsForCharacter (
-  character: string
-): Promise<Record<string, string[]>> {
+export async function fetchPartsForCharacter(character: string): Promise<Record<string, string[]>> {
   const data = await fetchJson(`/part/${encodeURIComponent(character.toLowerCase())}`)
   const grouped: Record<string, string[]> = {}
   if (!Array.isArray(data)) return grouped
@@ -89,7 +87,7 @@ export async function fetchPartsForCharacter (
 
 // Validates a combination by asking the generator to build it. Resolves with
 // null on success, or a human-readable error message on failure.
-export async function validateEmote (config: EmoteConfig): Promise<string | null> {
+export async function validateEmote(config: EmoteConfig): Promise<string | null> {
   const url = buildEmoteUrl(config)
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })

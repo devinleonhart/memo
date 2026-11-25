@@ -29,14 +29,18 @@ const FAILURE_TTL_MS = 60_000
 
 module.exports = {
   name: Events.MessageReactionAdd,
-  async execute (reaction: MessageReaction, user: User, client: Client) {
+  async execute(reaction: MessageReaction, user: User, client: Client) {
     void client
     if (user.bot) return
 
     if (reaction.emoji?.name !== BLACKBOOK_REACTION_EMOJI) return
 
     if (reaction.partial) {
-      try { await reaction.fetch() } catch { return }
+      try {
+        await reaction.fetch()
+      } catch {
+        return
+      }
     }
 
     // For robustness (especially for URL extraction), always fetch the message.
@@ -46,11 +50,15 @@ module.exports = {
       console.error('blackbookit: failed to fetch message for reaction upload', e)
       const base: any = reaction.message as any
       if (base?.reply) {
-        await sendTempReply(base, {
-          content:
-            `I couldn’t read that message to upload it (fetch failed).\n` +
-            `Make sure I have **View Channel** + **Read Message History** in this channel.`
-        }, FAILURE_TTL_MS)
+        await sendTempReply(
+          base,
+          {
+            content:
+              `I couldn’t read that message to upload it (fetch failed).\n` +
+              `Make sure I have **View Channel** + **Read Message History** in this channel.`
+          },
+          FAILURE_TTL_MS
+        )
       }
       return null
     })
@@ -58,17 +66,25 @@ module.exports = {
 
     const sources = getImageSources(msg)
     if (sources.length === 0) {
-      await sendTempReply(msg, {
-        content:
-          `I didn’t find an image attachment or image URL on that message to upload.\n` +
-          `If the image is a link, make sure the bot can read message content (Message Content Intent), or use \`/blackbook export\`.`
-      }, ERROR_TTL_MS)
+      await sendTempReply(
+        msg,
+        {
+          content:
+            `I didn’t find an image attachment or image URL on that message to upload.\n` +
+            `If the image is a link, make sure the bot can read message content (Message Content Intent), or use \`/blackbook export\`.`
+        },
+        ERROR_TTL_MS
+      )
       return
     }
 
     const universes = getUniverseChoices()
     if (universes.length === 0) {
-      await sendTempReply(msg, { content: 'No Blackbook universes are configured (`MEMO_BLACKBOOK_UNIVERSES`).' }, ERROR_TTL_MS)
+      await sendTempReply(
+        msg,
+        { content: 'No Blackbook universes are configured (`MEMO_BLACKBOOK_UNIVERSES`).' },
+        ERROR_TTL_MS
+      )
       return
     }
 
@@ -80,7 +96,7 @@ module.exports = {
     const select = new StringSelectMenuBuilder()
       .setCustomId(customId)
       .setPlaceholder('Select a Blackbook universe…')
-      .addOptions(universes.map(c => ({ label: c.name, value: c.value })))
+      .addOptions(universes.map((c) => ({ label: c.name, value: c.value })))
 
     const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)
 
@@ -111,12 +127,16 @@ module.exports = {
         const baseUrl = process.env.BLACKBOOK_BASE_URL?.trim()
         const apiToken = process.env.BLACKBOOK_API_TOKEN?.trim()
         if (!baseUrl) {
-          await prompt.edit({ content: 'Missing `BLACKBOOK_BASE_URL` in environment.', components: [] }).catch(() => {})
+          await prompt
+            .edit({ content: 'Missing `BLACKBOOK_BASE_URL` in environment.', components: [] })
+            .catch(() => {})
           scheduleDelete(prompt, ERROR_TTL_MS)
           return
         }
         if (!apiToken) {
-          await prompt.edit({ content: 'Missing `BLACKBOOK_API_TOKEN` in environment.', components: [] }).catch(() => {})
+          await prompt
+            .edit({ content: 'Missing `BLACKBOOK_API_TOKEN` in environment.', components: [] })
+            .catch(() => {})
           scheduleDelete(prompt, ERROR_TTL_MS)
           return
         }
@@ -152,16 +172,18 @@ module.exports = {
           console.error(
             `blackbookit: upload summary msg=${msg.id} user=${user.id} universe=${universeCode} uploaded=${uploaded} skipped=${skipped} failed=${failed}`
           )
-          await prompt.edit({
-            content:
-              `Blackbook upload result for **${universeCode}**:\n` +
-              `Uploaded: ${uploaded}\n` +
-              `Skipped: ${skipped}\n` +
-              `Failed: ${failed}\n\n` +
-              `If this is a link upload, it may be getting skipped because the URL doesn’t return an \`image/*\` content-type. ` +
-              `Check the bot logs for details.`,
-            components: []
-          }).catch(() => {})
+          await prompt
+            .edit({
+              content:
+                `Blackbook upload result for **${universeCode}**:\n` +
+                `Uploaded: ${uploaded}\n` +
+                `Skipped: ${skipped}\n` +
+                `Failed: ${failed}\n\n` +
+                `If this is a link upload, it may be getting skipped because the URL doesn’t return an \`image/*\` content-type. ` +
+                `Check the bot logs for details.`,
+              components: []
+            })
+            .catch(() => {})
           scheduleDelete(prompt, FAILURE_TTL_MS)
           return
         }
@@ -180,7 +202,7 @@ module.exports = {
   }
 }
 
-async function safeReply (msg: Message, payload: any): Promise<any> {
+async function safeReply(msg: Message, payload: any): Promise<any> {
   try {
     return await msg.reply(payload)
   } catch {
@@ -188,15 +210,20 @@ async function safeReply (msg: Message, payload: any): Promise<any> {
   }
 }
 
-async function sendTempReply (msg: any, payload: any, ttlMs: number): Promise<void> {
-  const sent = await safeReply(msg, { ...payload, allowedMentions: { repliedUser: false, parse: [] } })
+async function sendTempReply(msg: any, payload: any, ttlMs: number): Promise<void> {
+  const sent = await safeReply(msg, {
+    ...payload,
+    allowedMentions: { repliedUser: false, parse: [] }
+  })
   if (!sent) return
   scheduleDelete(sent, ttlMs)
 }
 
-function scheduleDelete (msg: any, ttlMs: number): void {
+function scheduleDelete(msg: any, ttlMs: number): void {
   try {
-    const t: any = setTimeout(() => { void msg.delete().catch(() => {}) }, ttlMs)
+    const t: any = setTimeout(() => {
+      void msg.delete().catch(() => {})
+    }, ttlMs)
     t?.unref?.()
   } catch {}
 }
