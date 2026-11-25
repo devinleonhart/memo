@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, EmbedBuilder } from '@discordjs/builders'
 import { type AutocompleteInteraction, type ChatInputCommandInteraction } from 'discord.js'
+import { type BotCommand } from '../../core/command'
 import {
   buildEmoteUrl,
   fetchCharacters,
@@ -12,7 +13,7 @@ import {
 const commandName = 'emote'
 const MAX_CHOICES = 25
 
-module.exports = {
+export default {
   data: new SlashCommandBuilder()
     .setName(commandName)
     .setDescription('Generate a character emote and post it as an embed.')
@@ -111,4 +112,4 @@ module.exports = {
       if (!interaction.responded) await interaction.respond([])
     }
   }
-}
+} satisfies BotCommand

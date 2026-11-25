@@ -1,18 +1,20 @@
-import { type Client, Events, type Interaction } from 'discord.js'
+import { type ChatInputCommandInteraction, type Client, Events, type Interaction } from 'discord.js'
+import { type BotCommand, type BotEvent } from '../../core/command'
 
-module.exports = {
+const event: BotEvent = {
   name: Events.InteractionCreate,
-  async execute(interaction: Interaction, client: Client) {
+  async execute(...args) {
+    const [interaction, client] = args as [Interaction, Client]
     if (interaction.isChatInputCommand()) {
       const command = client.commands.get(interaction.commandName)
       if (!command) return
-      await handleExecute(command, interaction)
+      await handleExecute(command, interaction, client)
       return
     }
 
-    if (interaction.isAutocomplete?.()) {
+    if (interaction.isAutocomplete()) {
       const command = client.commands.get(interaction.commandName)
-      if (!command || typeof command.autocomplete !== 'function') return
+      if (!command?.autocomplete) return
       try {
         await command.autocomplete(interaction)
       } catch (error) {
@@ -22,9 +24,15 @@ module.exports = {
   }
 }
 
-async function handleExecute(instance: any, interaction: any): Promise<void> {
+export default event
+
+async function handleExecute(
+  command: BotCommand,
+  interaction: ChatInputCommandInteraction,
+  client: Client
+): Promise<void> {
   try {
-    await instance.execute(interaction)
+    await command.execute(interaction, client)
   } catch (error) {
     console.error(error)
     if (!interaction.replied && !interaction.deferred) {

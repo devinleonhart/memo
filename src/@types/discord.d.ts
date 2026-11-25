@@ -1,9 +1,8 @@
 import { type Collection } from 'discord.js'
+import { type BotCommand } from '../core/command'
 
 declare module 'discord.js' {
   export interface Client {
-    commands: Collection<unknown, any>
-    handleCommands: () => Promise<void>
-    handleEvents: () => void
+    commands: Collection<string, BotCommand>
   }
 }

@@ -1,7 +1,7 @@
-import { lookup as dnsLookup } from 'dns'
+import { lookup as dnsLookup, type LookupAddress } from 'dns'
 import http from 'http'
 import https from 'https'
-import { isIP } from 'net'
+import { isIP, type LookupFunction } from 'net'
 import type { Readable } from 'stream'
 
 // Fetches a link that a Discord user gave, and nothing inside this network: every
@@ -74,7 +74,8 @@ function groupsOf(address: string): number[] | null {
   const [head, tail] = text.split('::')
   const left = head ? head.split(':') : []
   const right = tail ? tail.split(':') : []
-  const middle = tail === undefined ? [] : new Array(8 - left.length - right.length).fill('0')
+  const middle =
+    tail === undefined ? [] : new Array<string>(8 - left.length - right.length).fill('0')
   const groups = [...left, ...middle, ...right].map((group) => parseInt(group, 16))
   return groups.length === 8 && groups.every((group) => group >= 0 && group <= 0xffff)
     ? groups
@@ -129,22 +130,21 @@ async function request(
   const timeoutMs = options.timeoutMs ?? TIMEOUT_MS
 
   // The connection uses what this returns, so a name cannot resolve differently after the check.
-  const lookup = (hostname: string, lookupOptions: any, callback: any): void => {
-    resolve(hostname, { ...lookupOptions, all: true }, (error: any, found: any) => {
-      if (error) return callback(error)
-      const addresses: Array<{ address: string; family: number }> = found
-      if (addresses.length === 0 || !addresses.every((one) => isPublic(one.address))) {
-        return callback(new RefusedUrlError('Not a public address'))
+  const lookup: LookupFunction = (hostname, lookupOptions, callback) => {
+    resolve(hostname, { ...lookupOptions, all: true }, (error, found: LookupAddress[]) => {
+      if (error) return callback(error, [])
+      if (found.length === 0 || !found.every((one) => isPublic(one.address))) {
+        return callback(new RefusedUrlError('Not a public address'), [])
       }
-      if (lookupOptions?.all) callback(null, addresses)
-      else callback(null, addresses[0].address, addresses[0].family)
+      if (lookupOptions.all) callback(null, found)
+      else callback(null, found[0].address, found[0].family)
     })
   }
 
   return await new Promise((resolve, reject) => {
     const client = url.protocol === 'https:' ? https : http
     const outgoing = client.request(url, {
-      lookup: lookup as any,
+      lookup,
       agent: false,
       timeout: timeoutMs,
       headers: { accept: 'image/*' }

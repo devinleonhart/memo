@@ -54,6 +54,8 @@ docker compose up -d memo-bot
 ```
 src/commands/    # One folder for each slash command
 src/events/      # Discord events: ready, interactions, reactions
+src/registry.ts  # The list of commands and events; a new one must be added here
+src/bootstrap.ts # Checks the settings, wires the registry to the client, registers commands, logs in
 src/services/    # The Emote Generator, the Blackbook import, and fetching of public addresses
 src/settings.ts  # The environment, read once
 ```

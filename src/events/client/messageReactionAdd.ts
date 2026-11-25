@@ -4,14 +4,16 @@ import {
   Events,
   StringSelectMenuBuilder,
   type StringSelectMenuInteraction,
-  type Collection,
-  type Client,
+  type Message,
   type MessageReaction,
-  type User,
-  type Message
+  type MessageReplyOptions,
+  type PartialMessageReaction,
+  type PartialUser,
+  type User
 } from 'discord.js'
 import { promises as fs } from 'fs'
 import { resolve } from 'path'
+import { type BotEvent } from '../../core/command'
 import {
   BLACKBOOK_REACTION_EMOJI,
   getUniverseChoices,
@@ -27,13 +29,16 @@ const PROMPT_TTL_MS = 60_000
 const ERROR_TTL_MS = 10_000
 const FAILURE_TTL_MS = 60_000
 
-module.exports = {
+type Replyable = Pick<Message, 'reply'>
+type Deletable = Pick<Message, 'delete'>
+
+const event: BotEvent = {
   name: Events.MessageReactionAdd,
-  async execute(reaction: MessageReaction, user: User, client: Client) {
-    void client
+  async execute(...args) {
+    const [reaction, user] = args as [MessageReaction | PartialMessageReaction, User | PartialUser]
     if (user.bot) return
 
-    if (reaction.emoji?.name !== BLACKBOOK_REACTION_EMOJI) return
+    if (reaction.emoji.name !== BLACKBOOK_REACTION_EMOJI) return
 
     if (reaction.partial) {
       try {
@@ -48,10 +53,10 @@ module.exports = {
     // depending on cache/state; fetching aligns behavior with `/blackbook export`.
     const msg = await reaction.message.fetch().catch(async (e) => {
       console.error('blackbookit: failed to fetch message for reaction upload', e)
-      const base: any = reaction.message as any
-      if (base?.reply) {
+      const base: Partial<Replyable> = reaction.message
+      if (base.reply) {
         await sendTempReply(
-          base,
+          { reply: base.reply.bind(reaction.message) },
           {
             content:
               `I couldn’t read that message to upload it (fetch failed).\n` +
@@ -117,7 +122,7 @@ module.exports = {
       filter: (i: StringSelectMenuInteraction) => i.user.id === user.id && i.customId === customId
     })
 
-    collector.on('collect', async (i: StringSelectMenuInteraction) => {
+    const onCollect = async (i: StringSelectMenuInteraction): Promise<void> => {
       const universeCode = i.values[0] ?? ''
       await i.deferUpdate()
 
@@ -192,17 +197,25 @@ module.exports = {
       } finally {
         inflight.delete(key)
       }
+    }
+
+    collector.on('collect', (i) => {
+      void onCollect(i).catch((error) => {
+        console.error('blackbookit: upload after universe choice failed', error)
+      })
     })
 
-    collector.on('end', async (collected: Collection<string, StringSelectMenuInteraction>) => {
+    collector.on('end', (collected) => {
       if (collected.size > 0) return
       inflight.delete(key)
-      await prompt.delete().catch(() => {})
+      void prompt.delete().catch(() => {})
     })
   }
 }
 
-async function safeReply(msg: Message, payload: any): Promise<any> {
+export default event
+
+async function safeReply(msg: Replyable, payload: MessageReplyOptions): Promise<Message | null> {
   try {
     return await msg.reply(payload)
   } catch {
@@ -210,7 +223,11 @@ async function safeReply(msg: Message, payload: any): Promise<any> {
   }
 }
 
-async function sendTempReply(msg: any, payload: any, ttlMs: number): Promise<void> {
+async function sendTempReply(
+  msg: Replyable,
+  payload: MessageReplyOptions,
+  ttlMs: number
+): Promise<void> {
   const sent = await safeReply(msg, {
     ...payload,
     allowedMentions: { repliedUser: false, parse: [] }
@@ -219,11 +236,9 @@ async function sendTempReply(msg: any, payload: any, ttlMs: number): Promise<voi
   scheduleDelete(sent, ttlMs)
 }
 
-function scheduleDelete(msg: any, ttlMs: number): void {
-  try {
-    const t: any = setTimeout(() => {
-      void msg.delete().catch(() => {})
-    }, ttlMs)
-    t?.unref?.()
-  } catch {}
+function scheduleDelete(msg: Deletable, ttlMs: number): void {
+  const timer = setTimeout(() => {
+    void msg.delete().catch(() => {})
+  }, ttlMs)
+  timer.unref()
 }
