@@ -1,0 +1,10 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@types/node@26.6.7'
+overrides:
+  # Force patched transitive versions inside discord.js's tree (production).
+  # Each satisfies its parent's declared range, so these are safe:
+  #   @discordjs/ws wants ws ^8.17.0; @sapphire/shapeshift wants lodash ^4.17.21.
+  ws: '^8.21.3'
+  lodash: '^4.18.1'

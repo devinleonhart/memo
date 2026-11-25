@@ -8,13 +8,15 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./package.json:/app/package.json:ro
-      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
       - ./tsconfig.json:/app/tsconfig.json:ro
-      - ./nodemon.json:/app/nodemon.json:ro
-      - ./eslint.config.js:/app/eslint.config.js:ro
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml:ro
+      - node_modules:/app/node_modules
       - ./data:/app/data
     environment:
       - NODE_ENV=development
     env_file:
       - .env
     init: true
+
+volumes:
+  node_modules:

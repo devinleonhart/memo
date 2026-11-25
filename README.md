@@ -17,25 +17,28 @@ Needs Node and pnpm at the versions in `.tool-versions`, and a `.env` with the v
 
 ```bash
 pnpm install
-pnpm dev             # runs with nodemon, restarting on changes
-pnpm quality         # type check, lint and tests: everything CI checks
-docker compose up    # the same in a container, from Dockerfile.dev
+pnpm dev           # runs with tsx, restarting on changes
+pnpm quality       # type check, lint, format check and tests
+pnpm quality:ci    # the same with the coverage gate: everything CI checks
+pnpm format        # formats with Prettier
+pnpm lint:fix      # fixes lint problems
+docker compose up  # the same in a container, from Dockerfile.dev
 ```
 
 Slash commands are registered on startup.
 
 ## Environment
 
-| Variable | Purpose |
-|---|---|
-| `MEMO_SECRET_KEY` | The bot's token |
-| `MEMO_CLIENT_ID` | The application's ID |
-| `MEMO_GUILD_ID` | The server's ID; required when the scope is `guild` |
-| `MEMO_COMMANDS_SCOPE` | `guild` (default) or `global` |
-| `BLACKBOOK_BASE_URL`, `BLACKBOOK_API_TOKEN` | Blackbook's address and its import token |
-| `MEMO_BLACKBOOK_UNIVERSES` | The universes to offer, as `CODE=Name` pairs separated by `;`. They are kept out of the code on purpose |
-| `MEMO_SPOOL_DIR` | Where downloads and the index of uploaded images are kept; in the image `/data/blackbook-spool`, which should be on a volume |
-| `EMOTE_BASE_URL` | The Emote Generator's address (default `https://emote.devleo.me`) |
+| Variable                                    | Purpose                                                                                                                      |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `MEMO_SECRET_KEY`                           | The bot's token                                                                                                              |
+| `MEMO_CLIENT_ID`                            | The application's ID                                                                                                         |
+| `MEMO_GUILD_ID`                             | The server's ID; required when the scope is `guild`                                                                          |
+| `MEMO_COMMANDS_SCOPE`                       | `guild` (default) or `global`                                                                                                |
+| `BLACKBOOK_BASE_URL`, `BLACKBOOK_API_TOKEN` | Blackbook's address and its import token                                                                                     |
+| `MEMO_BLACKBOOK_UNIVERSES`                  | The universes to offer, as `CODE=Name` pairs separated by `;`. They are kept out of the code on purpose                      |
+| `MEMO_SPOOL_DIR`                            | Where downloads and the index of uploaded images are kept; in the image `/data/blackbook-spool`, which should be on a volume |
+| `EMOTE_BASE_URL`                            | The Emote Generator's address (default `https://emote.devleo.me`)                                                            |
 
 ## Deployment
 

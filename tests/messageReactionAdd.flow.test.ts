@@ -60,7 +60,7 @@ describe('messageReactionAdd flow', () => {
         attachments: new Map([['1', { url: 'https://cdn.example/a.png', contentType: 'image/png', name: 'a.png' }]]),
         content: '',
         reply: vi.fn().mockResolvedValue(prompt),
-        fetch: vi.fn().mockImplementation(async function () { return this })
+        fetch: vi.fn().mockImplementation(async function (this: unknown) { return this })
       }
     } as any
 

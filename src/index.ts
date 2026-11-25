@@ -41,7 +41,7 @@ import settings from './settings'
     }
   }
 
-  await client.handleEvents()
+  client.handleEvents()
   await client.handleCommands()
   await client.login(settings.secretKey)
 })().catch(error => { console.error('Unhandled promise rejection:', error) })
